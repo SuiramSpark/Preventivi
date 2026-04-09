@@ -1,0 +1,14 @@
+{
+  "name": "preventivi-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA locale per creare preventivi con dashboard, template, stampa e PDF on demand.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "devDependencies": {
+    "vite": "^7.1.7"
+  }
+}

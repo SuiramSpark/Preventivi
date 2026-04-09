@@ -1,0 +1,18 @@
+{
+  "name": "Preventivi PWA",
+  "short_name": "Preventivi",
+  "description": "PWA locale per creare preventivi con dashboard, template, stampa e PDF su richiesta.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4efe7",
+  "theme_color": "#0b5f56",
+  "lang": "it-IT",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

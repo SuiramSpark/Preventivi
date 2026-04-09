@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b5f56">
+  <meta name="description" content="PWA locale per creare preventivi, visualizzare anteprime e generare PDF solo su richiesta.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/icon.svg">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Preventivi PWA</title>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <span class="brand-mark">P</span>
+        <div>
+          <p class="eyebrow">Local First PWA</p>
+          <h1>Preventivi</h1>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Sezioni app">
+        <button class="nav-link is-active" type="button" data-section="dashboard">Dashboard</button>
+        <button class="nav-link" type="button" data-section="quotes">Preventivi</button>
+        <button class="nav-link" type="button" data-section="templates">Template</button>
+        <button class="nav-link" type="button" data-section="settings">Impostazioni</button>
+      </nav>
+
+      <div class="sidebar-note">
+        <p>Offline di default, database nel browser, Firebase pronto ma facoltativo.</p>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">PWA per preventivi</p>
+          <h2>Dashboard, archiviazione locale e anteprima visiva pronta per stampa</h2>
+        </div>
+        <div class="topbar-actions">
+          <button id="installButton" class="secondary" type="button" hidden>Installa app</button>
+          <button id="newQuoteButton" class="primary" type="button">Nuovo preventivo</button>
+        </div>
+      </header>
+
+      <section id="dashboardSection" class="page-section is-active" data-section-panel="dashboard" aria-labelledby="dashboardTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Panoramica</p>
+            <h3 id="dashboardTitle">Cruscotto preventivi</h3>
+          </div>
+        </div>
+
+        <div id="dashboardMetrics" class="metrics-grid"></div>
+
+        <div class="dashboard-grid">
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Pipeline</p>
+                <h4>Stato preventivi</h4>
+              </div>
+            </div>
+            <div id="dashboardPipeline"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Attività</p>
+                <h4>Preventivi recenti</h4>
+              </div>
+            </div>
+            <div id="dashboardRecent"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="quotesSection" class="page-section" data-section-panel="quotes" aria-labelledby="quotesTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Archivio e composizione</p>
+            <h3 id="quotesTitle">Preventivi</h3>
+          </div>
+        </div>
+
+        <div class="panel toolbar">
+          <label class="field grow">
+            <span>Ricerca</span>
+            <input id="searchQuotes" type="search" placeholder="Cliente, titolo, numero preventivo">
+          </label>
+          <label class="field">
+            <span>Stato</span>
+            <select id="statusFilter">
+              <option value="all">Tutti</option>
+              <option value="draft">Bozza</option>
+              <option value="sent">Inviato</option>
+              <option value="approved">Confermato</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Ordina</span>
+            <select id="sortQuotes">
+              <option value="updated-desc">Ultimo aggiornamento</option>
+              <option value="updated-asc">Meno recente</option>
+              <option value="total-desc">Totale piu alto</option>
+              <option value="total-asc">Totale piu basso</option>
+              <option value="client-asc">Cliente A-Z</option>
+              <option value="status-asc">Stato</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="quotes-grid">
+          <article class="panel list-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Lista</p>
+                <h4>Preventivi salvati</h4>
+              </div>
+              <span id="quoteCounter" class="badge subtle">0 risultati</span>
+            </div>
+            <div id="quoteList" class="quote-list"></div>
+          </article>
+
+          <article class="panel editor-panel">
+            <div id="quoteEditor"></div>
+          </article>
+
+          <article class="panel preview-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Anteprima</p>
+                <h4>Layout visivo</h4>
+              </div>
+              <span id="previewTemplateBadge" class="badge">Template</span>
+            </div>
+            <div id="quotePreview" class="preview-host"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="templatesSection" class="page-section" data-section-panel="templates" aria-labelledby="templatesTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Aspetto documento</p>
+            <h3 id="templatesTitle">Template Word e PowerPoint</h3>
+          </div>
+        </div>
+
+        <div class="template-grid">
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Scelta rapida</p>
+                <h4>Template disponibili</h4>
+              </div>
+            </div>
+            <div id="templateCards" class="template-cards"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Personalizzazione</p>
+                <h4>Editor template</h4>
+              </div>
+            </div>
+            <div id="templateEditor"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="settingsSection" class="page-section" data-section-panel="settings" aria-labelledby="settingsTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Configurazione</p>
+            <h3 id="settingsTitle">Parametri applicazione</h3>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Azienda e regole</p>
+                <h4>Impostazioni</h4>
+              </div>
+            </div>
+            <div id="settingsEditor"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Firebase Ready</p>
+                <h4>Stato integrazione</h4>
+              </div>
+            </div>
+            <div id="settingsSummary"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="statusToast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <noscript>Questa app richiede JavaScript attivo per funzionare.</noscript>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
