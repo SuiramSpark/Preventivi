@@ -1,6 +1,6 @@
 {
   "name": "preventivi-pwa",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "PWA locale per creare preventivi con dashboard, template, stampa e PDF on demand.",
   "main": "electron/main.js",

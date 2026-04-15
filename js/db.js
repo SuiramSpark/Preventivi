@@ -361,27 +361,32 @@ export async function seedDatabase() {
   }
 
   const quotes = await getAllRecords(STORES.quotes);
-  if (!quotes.length) {
-    const demoQuote = createEmptyQuote(currentSettings, {
-      title: "Restyling sito web",
-      clientCompany: "Rossi Impianti",
-      clientName: "Marco Rossi",
-      clientEmail: "marco@rossi-impianti.it",
-      status: "sent",
-      templateId: "word",
-      intro: "Preventivo per redesign homepage, pagine servizi e ottimizzazione mobile.",
-      items: [
-        createLineItem({ description: "Analisi iniziale e architettura", qty: 1, unitPrice: 480 }),
-        createLineItem({ description: "UI design responsive", qty: 1, unitPrice: 920 }),
-        createLineItem({ description: "Sviluppo componenti e consegna", qty: 1, unitPrice: 1240 })
-      ]
-    });
-
-    await putRecord(STORES.quotes, demoQuote);
-    await putRecord(STORES.settings, {
-      ...currentSettings,
-      nextQuoteNumber: currentSettings.nextQuoteNumber + 1
-    });
+  if (!currentSettings.demoSeeded) {
+    if (!quotes.length) {
+      const demoQuote = createEmptyQuote(currentSettings, {
+        title: "Restyling sito web",
+        clientCompany: "Rossi Impianti",
+        clientName: "Marco Rossi",
+        clientEmail: "marco@rossi-impianti.it",
+        status: "sent",
+        templateId: "word",
+        intro: "Preventivo per redesign homepage, pagine servizi e ottimizzazione mobile.",
+        items: [
+          createLineItem({ description: "Analisi iniziale e architettura", qty: 1, unitPrice: 480 }),
+          createLineItem({ description: "UI design responsive", qty: 1, unitPrice: 920 }),
+          createLineItem({ description: "Sviluppo componenti e consegna", qty: 1, unitPrice: 1240 })
+        ]
+      });
+      await putRecord(STORES.quotes, demoQuote);
+      await putRecord(STORES.settings, {
+        ...currentSettings,
+        nextQuoteNumber: currentSettings.nextQuoteNumber + 1,
+        demoSeeded: true,
+      });
+    } else {
+      // Utente già con preventivi (aggiornamento da versione precedente) — segna come seeded
+      await putRecord(STORES.settings, { ...currentSettings, demoSeeded: true });
+    }
   }
 
   // Migra: crea azienda di default dai settings se non ce ne sono ancora
