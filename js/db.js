@@ -1,10 +1,11 @@
 const DB_NAME = "preventivi-local-db";
-const DB_VERSION = 1;
+const DB_VERSION = 4;
 
 export const STORES = {
   quotes: "quotes",
   settings: "settings",
   templates: "templates",
+  companies: "companies",
 };
 
 export const DEFAULT_SETTINGS = {
@@ -15,6 +16,7 @@ export const DEFAULT_SETTINGS = {
   email: "",
   phone: "",
   website: "",
+  companyPec: "",
   defaultVatRate: 22,
   currency: "EUR",
   numberingPrefix: "PREV",
@@ -36,22 +38,34 @@ export const DEFAULT_TEMPLATES = [
   {
     id: "word",
     name: "Word",
-    description: "Stile sobrio, pulito e documentale per preventivi formali.",
-    accent: "#0b5f56",
-    surface: "#f7fbfa",
-    text: "#1f2f2c",
-    coverLabel: "Documento professionale",
-    introText: "Proposta economica strutturata, pronta per condivisione e stampa.",
+    description: "Documentale formale, font serif, blu professionale.",
+    accent: "#2b5797",
+    surface: "#eef3fb",
+    text: "#1a2a4a",
   },
   {
     id: "powerpoint",
     name: "PowerPoint",
-    description: "Visuale piu forte, con hero iniziale e tono da presentazione.",
-    accent: "#cb7f36",
-    surface: "#fff4ea",
+    description: "Tono energico per presentazioni, arancione vibrante.",
+    accent: "#d24726",
+    surface: "#fdf3ef",
     text: "#1f2f2c",
-    coverLabel: "Pitch commerciale",
-    introText: "Una proposta visiva adatta a presentazioni, meeting e invio rapido.",
+  },
+  {
+    id: "excel",
+    name: "Excel",
+    description: "Pulito e analitico, verde professionale stile tabellare.",
+    accent: "#217346",
+    surface: "#f0f7f2",
+    text: "#1a2d20",
+  },
+  {
+    id: "rosso",
+    name: "Rosso",
+    description: "Impatto visivo forte per preventivi urgenti o premium.",
+    accent: "#c0392b",
+    surface: "#fef3f2",
+    text: "#2d1a1a",
   },
 ];
 
@@ -72,8 +86,9 @@ function openDatabase() {
   databasePromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result;
+      const oldVersion = event.oldVersion;
 
       if (!db.objectStoreNames.contains(STORES.quotes)) {
         const quoteStore = db.createObjectStore(STORES.quotes, { keyPath: "id" });
@@ -85,8 +100,16 @@ function openDatabase() {
         db.createObjectStore(STORES.settings, { keyPath: "id" });
       }
 
+      // v3/v4: delete templates store so seedDatabase re-seeds with new default colors/structure
+      if (oldVersion < 4 && db.objectStoreNames.contains(STORES.templates)) {
+        db.deleteObjectStore(STORES.templates);
+      }
       if (!db.objectStoreNames.contains(STORES.templates)) {
         db.createObjectStore(STORES.templates, { keyPath: "id" });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.companies)) {
+        db.createObjectStore(STORES.companies, { keyPath: "id" });
       }
     };
 
@@ -158,12 +181,32 @@ function mergeTemplate(template, baseTemplate) {
   };
 }
 
+export function createEmptyCompany(overrides = {}) {
+  return {
+    id: crypto.randomUUID(),
+    name: "",
+    vatId: "",
+    pec: "",
+    address: "",
+    email: "",
+    phone: "",
+    website: "",
+    logo: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
 export function createLineItem(overrides = {}) {
   return {
     id: crypto.randomUUID(),
     description: "",
     qty: 1,
     unitPrice: 0,
+    vatRate: null,          // null = eredita l'aliquota del preventivo
+    lineDiscount: 0,        // sconto sulla voce
+    lineDiscountType: "percent", // "percent" | "fixed"
     ...overrides,
   };
 }
@@ -174,9 +217,32 @@ function normalizeItems(items) {
     description: item.description ?? "",
     qty: Number(item.qty) || 0,
     unitPrice: Number(item.unitPrice) || 0,
+    vatRate: item.vatRate != null ? Number(item.vatRate) : null,
+    lineDiscount: Number(item.lineDiscount) || 0,
+    lineDiscountType: item.lineDiscountType === "fixed" ? "fixed" : "percent",
   }));
 
   return normalized.length ? normalized : [createLineItem()];
+}
+
+/** Calcola tutti i valori economici di una singola riga */
+export function calculateLineItem(item, defaultVat = 0) {
+  const qty       = Number(item.qty) || 0;
+  const unitPrice = Number(item.unitPrice) || 0;
+  const imponibile = qty * unitPrice;
+
+  const discountVal  = Number(item.lineDiscount) || 0;
+  const discountType = item.lineDiscountType === "fixed" ? "fixed" : "percent";
+  const lineDiscountAmount = discountType === "fixed"
+    ? Math.min(discountVal, imponibile)
+    : imponibile * (discountVal / 100);
+
+  const imponibileNetto = imponibile - lineDiscountAmount;
+  const vatRate         = item.vatRate != null ? Number(item.vatRate) : defaultVat;
+  const ivaImporto      = imponibileNetto * (vatRate / 100);
+  const totaleVoce      = imponibileNetto + ivaImporto;
+
+  return { qty, unitPrice, imponibile, discountVal, discountType, lineDiscountAmount, imponibileNetto, vatRate, ivaImporto, totaleVoce };
 }
 
 export function createEmptyQuote(settings, overrides = {}) {
@@ -189,6 +255,9 @@ export function createEmptyQuote(settings, overrides = {}) {
     title: "Nuovo preventivo",
     clientName: "",
     clientCompany: "",
+    clientVatId: "",
+    clientAddress: "",
+    clientPec: "",
     clientEmail: "",
     clientPhone: "",
     status: "draft",
@@ -201,6 +270,7 @@ export function createEmptyQuote(settings, overrides = {}) {
     paymentTerms: safeSettings.paymentTerms,
     vatRate: safeSettings.defaultVatRate,
     discount: 0,
+    issuingCompanyId: null,
     items: [createLineItem({ description: "Servizio principale" })],
     ...overrides,
     items: normalizeItems(overrides.items),
@@ -212,6 +282,9 @@ export function duplicateQuote(sourceQuote, settings) {
     title: sourceQuote.title ? `${sourceQuote.title} copia` : "Copia preventivo",
     clientName: sourceQuote.clientName,
     clientCompany: sourceQuote.clientCompany,
+    clientVatId: sourceQuote.clientVatId ?? "",
+    clientAddress: sourceQuote.clientAddress ?? "",
+    clientPec: sourceQuote.clientPec ?? "",
     clientEmail: sourceQuote.clientEmail,
     clientPhone: sourceQuote.clientPhone,
     status: "draft",
@@ -221,28 +294,55 @@ export function duplicateQuote(sourceQuote, settings) {
     paymentTerms: sourceQuote.paymentTerms,
     vatRate: sourceQuote.vatRate,
     discount: sourceQuote.discount,
+    issuingCompanyId: sourceQuote.issuingCompanyId ?? null,
     items: (sourceQuote.items ?? []).map((item) =>
       createLineItem({
         description: item.description,
         qty: item.qty,
         unitPrice: item.unitPrice,
+        vatRate: item.vatRate ?? null,
+        lineDiscount: item.lineDiscount ?? 0,
+        lineDiscountType: item.lineDiscountType ?? "percent",
       }),
     ),
   });
 }
 
 export function calculateQuoteTotals(quote) {
-  const lines = normalizeItems(quote.items).filter((item) => item.description || item.qty || item.unitPrice);
-  const subtotal = lines.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
-  const discountRate = Number(quote.discount) || 0;
-  const discountedSubtotal = subtotal - (subtotal * discountRate) / 100;
-  const vatRate = Number(quote.vatRate) || 0;
-  const vatAmount = discountedSubtotal * (vatRate / 100);
-  const total = discountedSubtotal + vatAmount;
+  const defaultVat = Number(quote.vatRate) || 0;
+
+  const lines = normalizeItems(quote.items).filter(
+    (item) => item.description || item.qty || item.unitPrice
+  );
+
+  const calcs = lines.map(item => calculateLineItem(item, defaultVat));
+
+  const subtotal           = calcs.reduce((s, c) => s + c.imponibile,       0);
+  const totalDiscount      = calcs.reduce((s, c) => s + c.lineDiscountAmount, 0);
+  const discountedSubtotal = calcs.reduce((s, c) => s + c.imponibileNetto,   0);
+  const discountPercent    = subtotal > 0 ? (totalDiscount / subtotal) * 100 : 0;
+
+  // Raggruppa IVA per aliquota
+  const vatMap = new Map();
+  for (const c of calcs) {
+    const prev = vatMap.get(c.vatRate) ?? { amount: 0, base: 0 };
+    vatMap.set(c.vatRate, { amount: prev.amount + c.ivaImporto, base: prev.base + c.imponibileNetto });
+  }
+  if (!vatMap.size) vatMap.set(defaultVat, { amount: 0, base: 0 });
+
+  const vatGroups = [...vatMap.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([rate, { amount, base }]) => ({ rate, amount, base }));
+
+  const vatAmount = vatGroups.reduce((s, g) => s + g.amount, 0);
+  const total     = discountedSubtotal + vatAmount;
 
   return {
     subtotal,
+    totalDiscount,
+    discountPercent,
     discountedSubtotal,
+    vatGroups,
     vatAmount,
     total,
     lineCount: lines.length,
@@ -282,5 +382,21 @@ export async function seedDatabase() {
       ...currentSettings,
       nextQuoteNumber: currentSettings.nextQuoteNumber + 1
     });
+  }
+
+  // Migra: crea azienda di default dai settings se non ce ne sono ancora
+  const existingCompanies = await getAllRecords(STORES.companies);
+  if (!existingCompanies.length) {
+    const defaultCompany = createEmptyCompany({
+      id: "company-default",
+      name: currentSettings.companyName || "",
+      vatId: currentSettings.companyVatId || "",
+      pec: currentSettings.companyPec || "",
+      address: currentSettings.address || "",
+      email: currentSettings.email || "",
+      phone: currentSettings.phone || "",
+      website: currentSettings.website || "",
+    });
+    await putRecord(STORES.companies, defaultCompany);
   }
 }

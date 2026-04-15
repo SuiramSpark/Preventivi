@@ -1,0 +1,328 @@
+/* ────────────────────────────────────────────────
+   PAGINA DEDICATA PREVENTIVO (quoteEdit section)
+──────────────────────────────────────────────── */
+
+.qe-layout {
+  display: grid;
+  gap: 18px;
+}
+
+/* ── Header barra ── */
+
+.qe-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 22px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.qe-back-btn {
+  flex-shrink: 0;
+  transition: transform 110ms cubic-bezier(0.34, 1.56, 0.64, 1), background 160ms ease;
+}
+
+.qe-back-btn:hover {
+  transform: translateX(-3px);
+  background: rgba(11, 95, 86, 0.12);
+}
+
+.qe-back-btn:active {
+  transform: translateX(-1px) scale(0.96);
+}
+
+.qe-header-center {
+  flex: 1;
+  min-width: 0;
+}
+
+.qe-number {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.qe-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Gruppi pulsanti ── */
+
+.qe-btn-group {
+  display: flex;
+  gap: 4px;
+  background: rgba(11, 95, 86, 0.06);
+  border: 1px solid rgba(11, 95, 86, 0.1);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+/* ── Pulsante base dell'header ── */
+
+.qe-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  background: transparent;
+  color: var(--accent-strong);
+  cursor: pointer;
+  transition:
+    transform 110ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 160ms ease,
+    box-shadow 160ms ease,
+    color 200ms ease;
+  white-space: nowrap;
+}
+
+.qe-btn:hover {
+  background: rgba(11, 95, 86, 0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(11, 95, 86, 0.18);
+}
+
+.qe-btn:active {
+  transform: translateY(0) scale(0.94);
+  box-shadow: none;
+  background: rgba(11, 95, 86, 0.18);
+}
+
+/* ── Salva: flash verde al click ── */
+
+.qe-btn--save {
+  background: rgba(11, 95, 86, 0.1);
+}
+
+.qe-btn--save:hover {
+  background: rgba(11, 95, 86, 0.2);
+}
+
+.qe-btn--save.is-saved {
+  background: #16a34a;
+  color: #ffffff;
+  box-shadow: 0 4px 18px rgba(22, 163, 74, 0.4);
+  transform: scale(1.04);
+}
+
+/* ── Elimina: stile rosso ── */
+
+.qe-btn--danger {
+  color: var(--danger);
+  background: rgba(176, 72, 59, 0.07);
+}
+
+.qe-btn--danger:hover {
+  background: rgba(176, 72, 59, 0.14);
+  box-shadow: 0 4px 14px rgba(176, 72, 59, 0.18);
+  color: var(--danger);
+}
+
+.qe-btn--danger:active {
+  background: rgba(176, 72, 59, 0.22);
+}
+
+/* ── Tiles sommario (live) ── */
+
+.qe-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.qe-total-tile {
+  background: rgba(11, 95, 86, 0.1);
+  border: 1px solid rgba(11, 95, 86, 0.2);
+}
+
+/* ── Toggle button ── */
+
+.qe-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 18px;
+  background: rgba(11, 95, 86, 0.05);
+  border: 1px solid rgba(11, 95, 86, 0.12);
+  border-radius: 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent, #0b5f56);
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.qe-toggle-btn:hover {
+  background: rgba(11, 95, 86, 0.1);
+  border-color: rgba(11, 95, 86, 0.22);
+}
+
+.qe-toggle-arrow {
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: transform 220ms ease;
+}
+
+/* ── Form area collassabile ── */
+
+.qe-form-area {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 250ms ease;
+}
+
+.qe-form-area.is-collapsed {
+  grid-template-rows: 0fr;
+}
+
+.qe-form-inner {
+  overflow: hidden;
+  display: grid;
+  gap: 18px;
+}
+
+/* ── Preview full-width (sempre visibile sotto il form) ── */
+
+.qe-preview-area {
+  /* standard panel — nessun posizionamento speciale */
+}
+
+/* ── Righe preventivo ── */
+
+.qe-line-items {
+  display: grid;
+  gap: 10px;
+}
+
+.qe-line-item {
+  display: grid;
+  grid-template-columns: 1fr 75px 110px 65px 130px 110px 38px;
+  gap: 10px;
+  align-items: end;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(11, 95, 86, 0.04);
+  border: 1px solid rgba(11, 95, 86, 0.07);
+  transition: border-color 160ms ease;
+}
+
+.qe-line-item:focus-within {
+  border-color: rgba(11, 95, 86, 0.22);
+}
+
+.qe-item-total {
+  display: grid;
+  gap: 4px;
+}
+
+.qe-item-total > span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.qe-item-total .qe-line-total {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+/* ── Sconto per riga (select tipo + input valore) ── */
+
+.qe-line-discount {
+  display: grid;
+  gap: 4px;
+}
+
+.qe-line-discount .field-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.qe-discount-input {
+  display: flex;
+  gap: 4px;
+}
+
+.qe-discount-input select {
+  flex: 0 0 44px;
+  padding: 8px 4px;
+  font-size: 0.82rem;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 47, 44, 0.15);
+  background: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+}
+
+.qe-discount-input input {
+  flex: 1;
+  min-width: 0;
+}
+
+.qe-remove-btn {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  align-self: end;
+}
+
+/* ────────────────────────────────────────────────
+   RESPONSIVE
+──────────────────────────────────────────────── */
+
+@media (max-width: 1060px) {
+  .qe-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .qe-header {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .qe-header-actions {
+    justify-content: stretch;
+  }
+
+  .qe-header-actions > * {
+    flex: 1 1 0;
+  }
+
+  .qe-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .qe-line-item {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  .qe-desc-field {
+    grid-column: 1 / -1;
+  }
+
+  .qe-line-discount {
+    grid-column: 1 / 3;
+  }
+
+  .qe-item-total {
+    grid-column: 1 / 3;
+  }
+
+  .qe-remove-btn {
+    grid-column: 3 / 4;
+    justify-self: end;
+    align-self: end;
+  }
+}

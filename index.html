@@ -8,25 +8,63 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./assets/icon.svg">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/sidebar.css">
+  <link rel="stylesheet" href="./css/layout.css">
+  <link rel="stylesheet" href="./css/components.css">
+  <link rel="stylesheet" href="./css/quote-page.css">
   <title>Preventivi PWA</title>
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand-block">
-        <span class="brand-mark">P</span>
-        <div>
-          <p class="eyebrow">Local First PWA</p>
-          <h1>Preventivi</h1>
+
+  <!-- Topbar visibile solo su mobile -->
+  <div class="mobile-topbar" id="mobileTopbar">
+    <div class="brand-inline">
+      <span class="brand-mark-sm">P</span>
+      <span class="brand-title-sm">Preventivi</span>
+    </div>
+    <button class="hamburger-btn" id="hamburgerBtn" type="button" aria-label="Apri navigazione" aria-expanded="false">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+  </div>
+
+  <!-- Overlay per chiudere la sidebar su mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" id="mainSidebar" aria-label="Navigazione principale">
+      <div class="sidebar-head">
+        <div class="brand-block">
+          <span class="brand-mark">P</span>
+          <div class="brand-text">
+            <p class="eyebrow">Local First PWA</p>
+            <h1>Preventivi</h1>
+          </div>
         </div>
+        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Comprimi menu">
+          <span class="toggle-arrow">‹</span>
+        </button>
       </div>
 
       <nav class="nav" aria-label="Sezioni app">
-        <button class="nav-link is-active" type="button" data-section="dashboard">Dashboard</button>
-        <button class="nav-link" type="button" data-section="quotes">Preventivi</button>
-        <button class="nav-link" type="button" data-section="templates">Template</button>
-        <button class="nav-link" type="button" data-section="settings">Impostazioni</button>
+        <button class="nav-link is-active" type="button" data-section="dashboard" title="Dashboard">
+          <span class="nav-icon" aria-hidden="true">⊞</span>
+          <span class="nav-label">Dashboard</span>
+        </button>
+        <button class="nav-link" type="button" data-section="quotes" title="Preventivi">
+          <span class="nav-icon" aria-hidden="true">☰</span>
+          <span class="nav-label">Preventivi</span>
+        </button>
+        <button class="nav-link" type="button" data-section="templates" title="Template">
+          <span class="nav-icon" aria-hidden="true">◫</span>
+          <span class="nav-label">Template</span>
+        </button>
+        <button class="nav-link" type="button" data-section="settings" title="Impostazioni">
+          <span class="nav-icon" aria-hidden="true">⚙</span>
+          <span class="nav-label">Impostazioni</span>
+        </button>
       </nav>
 
       <div class="sidebar-note">
@@ -35,11 +73,7 @@
     </aside>
 
     <main class="workspace">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">PWA per preventivi</p>
-          <h2>Dashboard, archiviazione locale e anteprima visiva pronta per stampa</h2>
-        </div>
+      <header class="workspace-toolbar" aria-label="Azioni rapide">
         <div class="topbar-actions">
           <button id="installButton" class="secondary" type="button" hidden>Installa app</button>
           <button id="newQuoteButton" class="primary" type="button">Nuovo preventivo</button>
@@ -50,31 +84,53 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Panoramica</p>
-            <h3 id="dashboardTitle">Cruscotto preventivi</h3>
+            <h3 id="dashboardTitle">Dashboard</h3>
           </div>
+          <p class="muted" id="dashboardDate"></p>
         </div>
 
         <div id="dashboardMetrics" class="metrics-grid"></div>
 
-        <div class="dashboard-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Distribuzione valore</p>
+              <h4>Pipeline preventivi</h4>
+            </div>
+          </div>
+          <div id="dashboardPipeline"></div>
+        </article>
+
+        <div class="dashboard-bottom">
           <article class="panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Pipeline</p>
-                <h4>Stato preventivi</h4>
+                <p class="eyebrow">Ultimi aggiornamenti</p>
+                <h4>Preventivi recenti</h4>
               </div>
+              <button class="ghost" type="button" data-nav-section="quotes">Vedi tutti →</button>
             </div>
-            <div id="dashboardPipeline"></div>
+            <div id="dashboardRecent"></div>
           </article>
 
           <article class="panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Attività</p>
-                <h4>Preventivi recenti</h4>
+                <p class="eyebrow">Clientela</p>
+                <h4>Top clienti</h4>
               </div>
             </div>
-            <div id="dashboardRecent"></div>
+            <div id="dashboardClients"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Andamento</p>
+                <h4>Trend 6 mesi</h4>
+              </div>
+            </div>
+            <div id="dashboardTrend"></div>
           </article>
         </div>
       </section>
@@ -82,15 +138,15 @@
       <section id="quotesSection" class="page-section" data-section-panel="quotes" aria-labelledby="quotesTitle">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Archivio e composizione</p>
-            <h3 id="quotesTitle">Preventivi</h3>
+            <p class="eyebrow">Archivio</p>
+            <h3 id="quotesTitle">Preventivi salvati</h3>
           </div>
         </div>
 
         <div class="panel toolbar">
           <label class="field grow">
-            <span>Ricerca</span>
-            <input id="searchQuotes" type="search" placeholder="Cliente, titolo, numero preventivo">
+            <span>Cerca</span>
+            <input id="searchQuotes" type="search" placeholder="Numero, titolo, cliente, email…">
           </label>
           <label class="field">
             <span>Stato</span>
@@ -98,49 +154,43 @@
               <option value="all">Tutti</option>
               <option value="draft">Bozza</option>
               <option value="sent">Inviato</option>
-              <option value="approved">Confermato</option>
+              <option value="approved">Approvato</option>
+              <option value="confirmed">Confermato</option>
+              <option value="paid">Pagato</option>
             </select>
+          </label>
+          <label class="field">
+            <span>Dal</span>
+            <input id="filterDateFrom" type="date">
+          </label>
+          <label class="field">
+            <span>Al</span>
+            <input id="filterDateTo" type="date">
           </label>
           <label class="field">
             <span>Ordina</span>
             <select id="sortQuotes">
               <option value="updated-desc">Ultimo aggiornamento</option>
               <option value="updated-asc">Meno recente</option>
-              <option value="total-desc">Totale piu alto</option>
-              <option value="total-asc">Totale piu basso</option>
+              <option value="total-desc">Totale più alto</option>
+              <option value="total-asc">Totale più basso</option>
               <option value="client-asc">Cliente A-Z</option>
               <option value="status-asc">Stato</option>
             </select>
           </label>
+          <button class="ghost" type="button" id="clearFilters" title="Azzera filtri">✕ Reset</button>
         </div>
 
-        <div class="quotes-grid">
-          <article class="panel list-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Lista</p>
-                <h4>Preventivi salvati</h4>
-              </div>
-              <span id="quoteCounter" class="badge subtle">0 risultati</span>
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Lista</p>
+              <h4>Preventivi salvati</h4>
             </div>
-            <div id="quoteList" class="quote-list"></div>
-          </article>
-
-          <article class="panel editor-panel">
-            <div id="quoteEditor"></div>
-          </article>
-
-          <article class="panel preview-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Anteprima</p>
-                <h4>Layout visivo</h4>
-              </div>
-              <span id="previewTemplateBadge" class="badge">Template</span>
-            </div>
-            <div id="quotePreview" class="preview-host"></div>
-          </article>
-        </div>
+            <span id="quoteCounter" class="badge subtle">0 risultati</span>
+          </div>
+          <div id="quoteList" class="quote-list"></div>
+        </article>
       </section>
 
       <section id="templatesSection" class="page-section" data-section-panel="templates" aria-labelledby="templatesTitle">
@@ -174,6 +224,10 @@
         </div>
       </section>
 
+      <section id="quoteEditSection" class="page-section" data-section-panel="quoteEdit" aria-label="Modifica preventivo">
+        <div id="quoteEditContent"></div>
+      </section>
+
       <section id="settingsSection" class="page-section" data-section-panel="settings" aria-labelledby="settingsTitle">
         <div class="section-heading">
           <div>
@@ -202,12 +256,33 @@
             </div>
             <div id="settingsSummary"></div>
           </article>
+
+          <article class="panel" style="grid-column: 1 / -1;">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Le mie aziende</p>
+                <h4>Profili aziendali emittenti</h4>
+              </div>
+            </div>
+            <div id="companiesEditor"></div>
+          </article>
         </div>
       </section>
     </main>
   </div>
 
   <div id="statusToast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <div id="confirmModal" class="modal-overlay" hidden aria-modal="true" role="dialog">
+    <div class="modal-card">
+      <h4 id="confirmModalTitle">Conferma</h4>
+      <p id="confirmModalMessage"></p>
+      <div class="modal-actions">
+        <button class="ghost" type="button" id="confirmModalCancel">Annulla</button>
+        <button class="danger" type="button" id="confirmModalConfirm">Elimina</button>
+      </div>
+    </div>
+  </div>
 
   <noscript>Questa app richiede JavaScript attivo per funzionare.</noscript>
 
