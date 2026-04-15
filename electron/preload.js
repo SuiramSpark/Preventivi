@@ -19,6 +19,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("save-file", { filename, buffer }),
 
   /**
+   * Apre una finestra di anteprima di stampa dedicata (solo Electron).
+   * @param {string} html — contenuto HTML completo della pagina
+   */
+  openPrintPreview: (html) =>
+    ipcRenderer.invoke("open-print-preview", { html }),
+
+  /**
    * Apre il dialogo "Salva con nome" di Windows.
    * @param {string} defaultName — nome suggerito
    * @param {ArrayBuffer} buffer  — contenuto del file

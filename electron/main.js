@@ -75,6 +75,28 @@ ipcMain.handle("save-file", async (_event, { filename, buffer }) => {
   }
 });
 
+// ── IPC: Anteprima di stampa in finestra dedicata ───────────────────────────
+ipcMain.handle("open-print-preview", async (_event, { html }) => {
+  const tmpPath = path.join(app.getPath("temp"), `preventivi-print-${Date.now()}.html`);
+  fs.writeFileSync(tmpPath, html, "utf8");
+
+  const printWin = new BrowserWindow({
+    width: 900, height: 1100,
+    title: "Anteprima di Stampa – Preventivi",
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+
+  await printWin.loadFile(tmpPath);
+
+  // Apre il dialog di stampa di Chromium (stesso di window.print() nel browser)
+  printWin.webContents.executeJavaScript("window.print()").catch(() => {});
+
+  // Pulisce il file temporaneo alla chiusura
+  printWin.on("closed", () => {
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+  });
+});
+
 // ── IPC: Apri dialogo "Salva con nome" ──────────────────────────────────────
 ipcMain.handle("save-file-dialog", async (_event, { defaultName, buffer }) => {
   const { filePath, canceled } = await dialog.showSaveDialog({

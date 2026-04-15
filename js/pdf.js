@@ -1,12 +1,10 @@
 /**
  * pdf.js — apre nuova finestra con anteprima embedded e chiama window.print()
  * Produce PDF vettoriale, funziona offline.
+ * In Electron usa IPC per aprire una finestra dedicata (window.open è bloccato da file://).
  */
 
 export function printPreviewInNewWindow(quote, template, previewMarkup) {
-  const win = window.open("", "_blank");
-  if (!win) return false;
-
   const accentColor  = template?.accent  ?? "#0b5f56";
   const surfaceColor = template?.surface ?? "#f7fbfa";
   const textColor    = template?.text    ?? "#1f2f2c";
@@ -14,8 +12,7 @@ export function printPreviewInNewWindow(quote, template, previewMarkup) {
     ? "'Cambria','Palatino Linotype','Book Antiqua',serif"
     : "'Aptos','Segoe UI','Trebuchet MS',sans-serif";
 
-
-  win.document.write(`<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
@@ -131,14 +128,25 @@ body {
   border-top: 1px solid rgba(31,47,44,0.1);
   display: grid; gap: 4px;
   font-size: 0.72rem; color: var(--muted); line-height: 1.5;
-  break-before: avoid; page-break-before: avoid;  /* resta con i totali */
+  break-before: avoid; page-break-before: avoid;
 }
 .pv-payment strong, .pv-notes strong { color: var(--template-text); }
 </style>
 </head>
 <body>${previewMarkup}</body>
-</html>`);
+</html>`;
 
+  // ── Electron: finestra dedicata via IPC (window.open è bloccato da file://) ──
+  if (window.electronAPI?.openPrintPreview) {
+    window.electronAPI.openPrintPreview(html).catch(console.error);
+    return true;
+  }
+
+  // ── Browser (PWA / dev server) ──────────────────────────────────────────────
+  const win = window.open("", "_blank");
+  if (!win) return false;
+
+  win.document.write(html);
   win.document.close();
   win.focus();
   if (win.document.readyState === "complete") {

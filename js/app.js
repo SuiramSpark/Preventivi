@@ -1554,7 +1554,10 @@ async function shareCurrentQuote() {
   };
 
   try {
-    if (navigator.share && state.lastSharedPdf?.quoteId === quote.id && state.lastSharedPdf.file && navigator.canShare?.({ files: [state.lastSharedPdf.file] })) {
+    // In Electron navigator.share apre il dialog di Windows che non funziona senza URL
+    const isElectron = !!window.electronAPI;
+
+    if (!isElectron && navigator.share && state.lastSharedPdf?.quoteId === quote.id && state.lastSharedPdf.file && navigator.canShare?.({ files: [state.lastSharedPdf.file] })) {
       await navigator.share({
         ...shareData,
         files: [state.lastSharedPdf.file]
@@ -1563,14 +1566,14 @@ async function shareCurrentQuote() {
       return;
     }
 
-    if (navigator.share) {
+    if (!isElectron && navigator.share) {
       await navigator.share(shareData);
       showStatus("Riepilogo condiviso.");
       return;
     }
 
     await navigator.clipboard.writeText(shareData.text);
-    showStatus("Web Share non disponibile: riepilogo copiato negli appunti.");
+    showStatus("Riepilogo copiato negli appunti.");
   } catch (error) {
     if (error?.name !== "AbortError") {
       console.error(error);

@@ -140,6 +140,9 @@ Section "install" INSTALL_SECTION_ID
     ${endif}
   !endif
 
+  ; Imposta $newDesktopLink, $newStartMenuLink ecc. — VA chiamato prima di tutto
+  !insertmacro setLinkVars
+
   Var /GLOBAL keepShortcuts
   StrCpy $keepShortcuts "false"
   !insertMacro setIsTryToKeepShortcuts
