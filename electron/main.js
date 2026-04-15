@@ -3,6 +3,7 @@
  */
 
 const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs   = require("fs");
 
@@ -54,6 +55,27 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+
+  // Controlla aggiornamenti solo nell'app installata (non in sviluppo)
+  if (!IS_DEV) {
+    // Aspetta 3 secondi dopo l'avvio per non rallentare il caricamento iniziale
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(() => {});
+    }, 3000);
+  }
+});
+
+// ── Auto-update ─────────────────────────────────────────────────────────────
+autoUpdater.on("update-downloaded", () => {
+  const choice = dialog.showMessageBoxSync({
+    type:      "info",
+    title:     "Aggiornamento disponibile",
+    message:   "Una nuova versione è stata scaricata.",
+    detail:    "Vuoi riavviare Preventivi per applicare l'aggiornamento?",
+    buttons:   ["Riavvia ora", "Più tardi"],
+    defaultId: 0,
+  });
+  if (choice === 0) autoUpdater.quitAndInstall();
 });
 
 app.on("window-all-closed", () => {

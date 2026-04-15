@@ -5,23 +5,26 @@
   "description": "PWA locale per creare preventivi con dashboard, template, stampa e PDF on demand.",
   "main": "electron/main.js",
   "scripts": {
-    "dev":            "vite --host",
-    "build":          "vite build",
-    "preview":        "vite preview --host",
-    "electron:dev":   "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "vite build && electron-builder --win"
   },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  },
   "devDependencies": {
-    "concurrently":   "^9.1.2",
-    "electron":       "^35.0.0",
+    "concurrently": "^9.1.2",
+    "electron": "^35.0.0",
     "electron-builder": "^25.1.8",
-    "vite":           "^7.1.7",
-    "wait-on":        "^8.0.3"
+    "vite": "^7.1.7",
+    "wait-on": "^8.0.3"
   },
   "build": {
-    "appId":       "com.preventivi.app",
+    "appId": "com.preventivi.app",
     "productName": "Preventivi",
-    "copyright":   "Copyright © 2025",
+    "copyright": "Copyright © 2025",
     "directories": {
       "output": "C:\\PrevBuild",
       "buildResources": "build"
@@ -34,29 +37,38 @@
     "extraResources": [
       {
         "from": "assets/",
-        "to":   "assets/",
-        "filter": ["**/*"]
+        "to": "assets/",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch":   ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "C:\\PrevBuild\\icon.ico"
     },
     "nsis": {
-      "oneClick":                           false,
+      "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut":              true,
-      "createStartMenuShortcut":            true,
-      "shortcutName":                       "Preventivi",
-      "installerIcon":                      "C:\\PrevBuild\\icon.ico",
-      "uninstallerIcon":                    "C:\\PrevBuild\\icon.ico",
-      "deleteAppDataOnUninstall":           false,
-      "script":                             "build/installer.nsi"
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Preventivi",
+      "installerIcon": "C:\\PrevBuild\\icon.ico",
+      "uninstallerIcon": "C:\\PrevBuild\\icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "script": "build/installer.nsi"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "SuiramSpark",
+      "repo": "Preventivi"
     }
   }
 }
