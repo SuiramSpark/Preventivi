@@ -64,7 +64,7 @@ body {
   border-bottom: 1px solid rgba(31,47,44,0.12);
 }
 .pv-brand { display: flex; align-items: flex-start; gap: 8px; }
-.pv-logo { height: 32px; max-width: 100px; object-fit: contain; flex-shrink: 0; }
+.pv-logo { height: 53px; max-width: 166px; object-fit: contain; flex-shrink: 0; }
 .pv-brand-info { display: flex; flex-direction: column; gap: 1px; }
 .pv-company-name { font-size: 0.95rem; font-weight: 700; display: block; }
 .pv-company-contact, .pv-company-detail { font-size: 0.68rem; color: var(--muted); display: block; }
@@ -92,18 +92,18 @@ body {
 .pv-discount-row span { color: var(--muted); }
 
 /* ── Tabella voci ── */
-.pv-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.53rem; flex-shrink: 0; }
+.pv-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.68rem; flex-shrink: 0; }
 .pv-table thead tr { background: var(--template-accent); color: white; }
-.pv-table th { padding: 4px 4px; text-align: right; font-size: 0.48rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; white-space: nowrap; }
+.pv-table th { padding: 5px 4px; text-align: right; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; white-space: nowrap; }
 .pv-table th.pv-col-desc, .pv-table td.pv-col-desc { text-align: left; }
 .pv-table th:first-child { padding-left: 6px; }
 .pv-item-row td, .pv-empty-row td {
-  padding: 2px 4px; border-bottom: 1px solid rgba(31,47,44,0.06);
-  text-align: right; height: 15px; vertical-align: middle;
+  padding: 3px 4px; border-bottom: 1px solid rgba(31,47,44,0.06);
+  text-align: right; vertical-align: middle;
 }
 .pv-item-row td.pv-col-desc { text-align: left; padding-left: 6px; }
 .pv-empty-row td { color: transparent; }
-.pv-discount-amt { font-size: 0.44rem; color: var(--muted); display: block; }
+.pv-discount-amt { font-size: 0.58rem; color: var(--muted); display: block; }
 
 /* ── Totali ── */
 .pv-totals {
@@ -121,6 +121,18 @@ body {
   font-weight: 700; font-size: 0.9rem;
 }
 .pv-total-grand span, .pv-total-grand strong { color: var(--template-text); }
+
+/* ── Firma ── */
+.pv-signature {
+  margin-top: auto; padding-top: 16px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+}
+.pv-signature-line {
+  width: 180px; border-bottom: 1px solid rgba(31,47,44,0.35);
+}
+.pv-signature-label {
+  font-size: 0.65rem; color: var(--muted); text-align: right;
+}
 
 /* ── Footer ── */
 .pv-footer {

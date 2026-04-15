@@ -155,10 +155,21 @@ export function buildPreviewMarkup(quote, template, settings, company = null) {
         <div class="pv-total-row pv-total-grand"><span>Totale</span><strong>${formatCurrency(totals.total, currency)}</strong></div>
       </div>
 
-      <!-- ⑥ FOOTER: pagamento + note -->
-      <div class="pv-footer">
-        ${(quote.paymentTerms || settings.paymentTerms) ? `<div class="pv-payment"><strong>Pagamento:</strong> ${escapeHtml(quote.paymentTerms || settings.paymentTerms)}</div>` : ""}
-        ${(quote.notes || settings.defaultNotes) ? `<div class="pv-notes"><strong>Note:</strong> ${escapeHtml(quote.notes || settings.defaultNotes)}</div>` : ""}
+      <!-- ⑥ FOOTER: pagamento + note (solo se presente) -->
+      ${(() => {
+        const paymentLine = quote.paymentTerms?.trim() || settings.paymentTerms?.trim();
+        const notesLine   = quote.notes?.trim()        || settings.defaultNotes?.trim();
+        if (!paymentLine && !notesLine) return "";
+        return `<div class="pv-footer">
+          ${paymentLine ? `<div class="pv-payment"><strong>Pagamento:</strong> ${escapeHtml(paymentLine)}</div>` : ""}
+          ${notesLine   ? `<div class="pv-notes"><strong>Note:</strong> ${escapeHtml(notesLine)}</div>`           : ""}
+        </div>`;
+      })()}
+
+      <!-- ⑦ FIRMA PER ACCETTAZIONE -->
+      <div class="pv-signature">
+        <div class="pv-signature-line"></div>
+        <span class="pv-signature-label">Firma per accettazione</span>
       </div>
 
     </article>
