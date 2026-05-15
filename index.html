@@ -13,14 +13,24 @@
   <link rel="stylesheet" href="./css/layout.css">
   <link rel="stylesheet" href="./css/components.css">
   <link rel="stylesheet" href="./css/quote-page.css">
+  <link rel="stylesheet" href="./css/splash.css">
+  <link rel="stylesheet" href="./css/datepicker.css">
+  <link rel="stylesheet" href="./css/dashboard-charts.css">
   <title>Preventivi PWA</title>
 </head>
 <body>
 
+  <!-- Splashscreen animato (rimosso dopo l'init) -->
+  <div id="app-splash" class="app-splash" role="status" aria-live="polite" aria-label="Caricamento Preventivi">
+    <img src="./assets/icon.svg" alt="" class="app-splash__logo">
+    <h1 class="app-splash__title">Preventivi</h1>
+    <div class="app-splash__loader" aria-hidden="true"></div>
+  </div>
+
   <!-- Topbar visibile solo su mobile -->
   <div class="mobile-topbar" id="mobileTopbar">
     <div class="brand-inline">
-      <span class="brand-mark-sm">P</span>
+      <img src="./assets/icon.svg" alt="Preventivi" class="brand-mark-sm">
       <span class="brand-title-sm">Preventivi</span>
     </div>
     <button class="hamburger-btn" id="hamburgerBtn" type="button" aria-label="Apri navigazione" aria-expanded="false">
@@ -37,9 +47,8 @@
     <aside class="sidebar" id="mainSidebar" aria-label="Navigazione principale">
       <div class="sidebar-head">
         <div class="brand-block">
-          <span class="brand-mark">P</span>
+          <img src="./assets/icon.svg" alt="Preventivi" class="brand-mark">
           <div class="brand-text">
-            <p class="eyebrow">Local First PWA</p>
             <h1>Preventivi</h1>
           </div>
         </div>
@@ -91,47 +100,13 @@
 
         <div id="dashboardMetrics" class="metrics-grid"></div>
 
-        <article class="panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Distribuzione valore</p>
-              <h4>Pipeline preventivi</h4>
-            </div>
-          </div>
-          <div id="dashboardPipeline"></div>
-        </article>
-
-        <div class="dashboard-bottom">
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Ultimi aggiornamenti</p>
-                <h4>Preventivi recenti</h4>
-              </div>
-              <button class="ghost" type="button" data-nav-section="quotes">Vedi tutti →</button>
-            </div>
-            <div id="dashboardRecent"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Clientela</p>
-                <h4>Top clienti</h4>
-              </div>
-            </div>
-            <div id="dashboardClients"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Andamento</p>
-                <h4>Trend 6 mesi</h4>
-              </div>
-            </div>
-            <div id="dashboardTrend"></div>
-          </article>
+        <div class="dashboard-charts" id="dashboardCharts">
+          <div class="chart-card chart-card--span-12" id="chartRings"     data-accent="multi"></div>
+          <div class="chart-card chart-card--span-8"  id="chartMultiLine" data-accent="multi"></div>
+          <div class="chart-card chart-card--span-4"  id="chartDonutPaid" data-accent="orange"></div>
+          <div class="chart-card chart-card--span-6"  id="chartAreaVolume"></div>
+          <div class="chart-card chart-card--span-6"  id="chartBarTemplates"></div>
+          <div class="chart-card chart-card--span-12" id="chartTopClients" data-accent="orange"></div>
         </div>
       </section>
 
@@ -149,17 +124,6 @@
             <input id="searchQuotes" type="search" placeholder="Numero, titolo, cliente, email…">
           </label>
           <label class="field">
-            <span>Stato</span>
-            <select id="statusFilter">
-              <option value="all">Tutti</option>
-              <option value="draft">Bozza</option>
-              <option value="sent">Inviato</option>
-              <option value="approved">Approvato</option>
-              <option value="confirmed">Confermato</option>
-              <option value="paid">Pagato</option>
-            </select>
-          </label>
-          <label class="field">
             <span>Dal</span>
             <input id="filterDateFrom" type="date">
           </label>
@@ -175,7 +139,6 @@
               <option value="total-desc">Totale più alto</option>
               <option value="total-asc">Totale più basso</option>
               <option value="client-asc">Cliente A-Z</option>
-              <option value="status-asc">Stato</option>
             </select>
           </label>
           <button class="ghost" type="button" id="clearFilters" title="Azzera filtri">✕ Reset</button>
@@ -189,6 +152,7 @@
             </div>
             <span id="quoteCounter" class="badge subtle">0 risultati</span>
           </div>
+          <nav id="quoteStatusTabs" class="quote-status-tabs" role="tablist" aria-label="Filtra per stato"></nav>
           <div id="quoteList" class="quote-list"></div>
         </article>
       </section>
@@ -236,28 +200,14 @@
           </div>
         </div>
 
-        <div class="settings-grid">
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Azienda e regole</p>
-                <h4>Impostazioni</h4>
-              </div>
-            </div>
-            <div id="settingsEditor"></div>
-          </article>
+        <nav class="settings-tabs" role="tablist">
+          <button type="button" role="tab" class="settings-tab is-active" data-settings-tab="company">Azienda</button>
+          <button type="button" role="tab" class="settings-tab" data-settings-tab="rules">Numerazione e regole</button>
+          <button type="button" role="tab" class="settings-tab" data-settings-tab="cloud">Sincronizzazione</button>
+        </nav>
 
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Firebase Ready</p>
-                <h4>Stato integrazione</h4>
-              </div>
-            </div>
-            <div id="settingsSummary"></div>
-          </article>
-
-          <article class="panel" style="grid-column: 1 / -1;">
+        <article class="panel settings-panel">
+          <div class="settings-pane" data-settings-pane="company">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Le mie aziende</p>
@@ -265,8 +215,28 @@
               </div>
             </div>
             <div id="companiesEditor"></div>
-          </article>
-        </div>
+          </div>
+
+          <div class="settings-pane" data-settings-pane="rules" hidden>
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Regole applicazione</p>
+                <h4>Numerazione, IVA e default</h4>
+              </div>
+            </div>
+            <div id="settingsEditor"></div>
+          </div>
+
+          <div class="settings-pane" data-settings-pane="cloud" hidden>
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Cloud</p>
+                <h4>Sincronizzazione Firebase</h4>
+              </div>
+            </div>
+            <div id="settingsSummary"></div>
+          </div>
+        </article>
       </section>
     </main>
   </div>

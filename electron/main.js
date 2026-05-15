@@ -9,6 +9,50 @@ const fs   = require("fs");
 
 const IS_DEV = !app.isPackaged;
 
+// ── Splashscreen ────────────────────────────────────────────────────────────
+let splashWindow = null;
+
+function createSplash() {
+  splashWindow = new BrowserWindow({
+    width:        400,
+    height:       500,
+    frame:        false,
+    transparent:  true,
+    resizable:    false,
+    movable:      true,
+    alwaysOnTop:  true,
+    skipTaskbar:  true,
+    center:       true,
+    show:         true,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration:  false,
+    },
+  });
+
+  // Percorso assoluto al logo SVG (diverso fra dev e build installata)
+  const iconSvg = IS_DEV
+    ? path.join(__dirname, "../assets/icon.svg")
+    : path.join(process.resourcesPath, "assets/icon.svg");
+
+  const splashFile = path.join(__dirname, "splash.html");
+  const query = fs.existsSync(iconSvg)
+    ? { icon: "file:///" + iconSvg.replace(/\\/g, "/") }
+    : undefined;
+
+  splashWindow.loadFile(splashFile, query ? { query } : undefined).catch(() => {});
+
+  splashWindow.on("closed", () => { splashWindow = null; });
+}
+
+function closeSplash() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    try { splashWindow.close(); } catch (_) { /* noop */ }
+  }
+  splashWindow = null;
+}
+
 // ── Crea la finestra principale ─────────────────────────────────────────────
 function createWindow() {
   const iconPath = IS_DEV
@@ -22,12 +66,30 @@ function createWindow() {
     minHeight: 600,
     title:     "Preventivi",
     icon:      fs.existsSync(iconPath) ? iconPath : undefined,
+    show:      false,
     webPreferences: {
       preload:          path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration:  false,
     },
   });
+
+  // Mostra la main window solo quando e' pronta, e chiudi lo splash
+  win.once("ready-to-show", () => {
+    win.show();
+    closeSplash();
+  });
+
+  // Timeout di sicurezza: se ready-to-show non arriva entro 8s,
+  // forziamo show + chiusura splash per evitare schermate appese.
+  const safetyTimer = setTimeout(() => {
+    if (!win.isDestroyed() && !win.isVisible()) {
+      try { win.show(); } catch (_) {}
+    }
+    closeSplash();
+  }, 8000);
+  win.once("show", () => clearTimeout(safetyTimer));
+  win.on("closed", () => clearTimeout(safetyTimer));
 
   // Apre i link "target=_blank" nel browser di sistema, non in una nuova finestra Electron
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -50,6 +112,7 @@ function createWindow() {
 
 // ── Lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  createSplash();
   createWindow();
 
   app.on("activate", () => {
@@ -117,6 +180,29 @@ ipcMain.handle("open-print-preview", async (_event, { html }) => {
   printWin.on("closed", () => {
     try { fs.unlinkSync(tmpPath); } catch (_) {}
   });
+});
+
+// ── IPC: Genera PDF da HTML via Chromium printToPDF ─────────────────────────
+ipcMain.handle("generate-pdf", async (_event, { html }) => {
+  const tmpWin = new BrowserWindow({
+    show: false,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: false },
+  });
+
+  try {
+    const dataUrl = "data:text/html;charset=utf-8," + encodeURIComponent(html);
+    await tmpWin.loadURL(dataUrl);
+    await new Promise((res) => setTimeout(res, 120));
+    const pdfBuffer = await tmpWin.webContents.printToPDF({
+      pageSize: "A4",
+      printBackground: true,
+      margins: { top: 0.28, bottom: 0.28, left: 0.2, right: 0.2 },
+      preferCSSPageSize: true,
+    });
+    return pdfBuffer;
+  } finally {
+    if (!tmpWin.isDestroyed()) tmpWin.destroy();
+  }
 });
 
 // ── IPC: Apri dialogo "Salva con nome" ──────────────────────────────────────

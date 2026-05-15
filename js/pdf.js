@@ -1,10 +1,10 @@
 /**
- * pdf.js — apre nuova finestra con anteprima embedded e chiama window.print()
- * Produce PDF vettoriale, funziona offline.
- * In Electron usa IPC per aprire una finestra dedicata (window.open è bloccato da file://).
+ * pdf.js — genera HTML standalone del preventivo (con CSS @page per A4)
+ * e fornisce funzioni per stampare/scaricare PDF.
+ * Il template (colori, font) viene rispettato sia in stampa che in PDF.
  */
 
-export function printPreviewInNewWindow(quote, template, previewMarkup) {
+export function buildStandalonePreviewHtml(quote, template, previewMarkup) {
   const accentColor  = template?.accent  ?? "#0b5f56";
   const surfaceColor = template?.surface ?? "#f7fbfa";
   const textColor    = template?.text    ?? "#1f2f2c";
@@ -12,7 +12,7 @@ export function printPreviewInNewWindow(quote, template, previewMarkup) {
     ? "'Cambria','Palatino Linotype','Book Antiqua',serif"
     : "'Aptos','Segoe UI','Trebuchet MS',sans-serif";
 
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
@@ -147,17 +147,22 @@ body {
 </head>
 <body>${previewMarkup}</body>
 </html>`;
+}
 
-  // ── Electron: finestra dedicata via IPC (window.open è bloccato da file://) ──
+/**
+ * Legacy: apre una finestra/popup con anteprima di stampa.
+ * Tenuto per backward compatibility.
+ */
+export function printPreviewInNewWindow(quote, template, previewMarkup) {
+  const html = buildStandalonePreviewHtml(quote, template, previewMarkup);
+
   if (window.electronAPI?.openPrintPreview) {
     window.electronAPI.openPrintPreview(html).catch(console.error);
     return true;
   }
 
-  // ── Browser (PWA / dev server) ──────────────────────────────────────────────
   const win = window.open("", "_blank");
   if (!win) return false;
-
   win.document.write(html);
   win.document.close();
   win.focus();
@@ -167,4 +172,99 @@ body {
     win.addEventListener("load", () => win.print(), { once: true });
   }
   return true;
+}
+
+/**
+ * Genera un Blob PDF dal preventivo, rispettando il template (colori/font) e l'HTML del preview.
+ * - In Electron: usa il rendering nativo Chromium (printToPDF) via IPC. Fedelta' 100%, multi-pagina nativo.
+ * - In PWA / browser: usa jsPDF + html2canvas (lazy loaded). Multi-pagina con autoPaging.
+ * @returns {Promise<Blob>}
+ */
+export async function generatePdfBlob({ quote, template, previewMarkup }) {
+  const html = buildStandalonePreviewHtml(quote, template, previewMarkup);
+
+  if (window.electronAPI?.generatePdf) {
+    const buffer = await window.electronAPI.generatePdf(html);
+    return new Blob([buffer], { type: "application/pdf" });
+  }
+
+  // ── PWA path: jsPDF + html2canvas (dynamic import per code-splitting) ──────
+  const [{ default: jsPDFModule }, html2canvasModule] = await Promise.all([
+    import("jspdf"),
+    import("html2canvas"),
+  ]);
+  const jsPDF = jsPDFModule.jsPDF || jsPDFModule;
+  const html2canvas = html2canvasModule.default || html2canvasModule;
+
+  // Costruisce un container offscreen con l'HTML standalone, poi cattura come canvas
+  const container = document.createElement("div");
+  container.style.position = "fixed";
+  container.style.left = "-10000px";
+  container.style.top = "0";
+  container.style.width = "210mm";
+  container.style.background = "white";
+  container.innerHTML = html.replace(/^<!DOCTYPE[^>]*>|<\/?html[^>]*>|<head>[\s\S]*?<\/head>|<\/?body[^>]*>/gi, (match) => {
+    // Tieni solo il contenuto di <style> e di <body>
+    if (match.startsWith("<style") || match.startsWith("</style")) return match;
+    return "";
+  });
+  // Approccio piu' robusto: estrai esplicitamente <style> e body
+  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  const bodyMatch  = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  container.innerHTML = (styleMatch ? `<style>${styleMatch[1]}</style>` : "") + (bodyMatch ? bodyMatch[1] : previewMarkup);
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      windowWidth: container.scrollWidth,
+    });
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const pageWidthMm  = 210;
+    const pageHeightMm = 297;
+    const imgWidthMm   = pageWidthMm;
+    const imgHeightMm  = (canvas.height * imgWidthMm) / canvas.width;
+
+    let heightLeft = imgHeightMm;
+    let position   = 0;
+    const imgData  = canvas.toDataURL("image/jpeg", 0.92);
+
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidthMm, imgHeightMm, undefined, "FAST");
+    heightLeft -= pageHeightMm;
+
+    while (heightLeft > 0) {
+      position -= pageHeightMm;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidthMm, imgHeightMm, undefined, "FAST");
+      heightLeft -= pageHeightMm;
+    }
+
+    return pdf.output("blob");
+  } finally {
+    container.remove();
+  }
+}
+
+/**
+ * Scarica il PDF generato. Usa il dialog di salvataggio Electron quando disponibile,
+ * altrimenti crea un link <a download> nel browser.
+ * @returns {Promise<{ok: boolean, path?: string, error?: string}>}
+ */
+export async function downloadPdfBlob(blob, filename) {
+  if (window.electronAPI?.saveFileDialog) {
+    const buffer = await blob.arrayBuffer();
+    return await window.electronAPI.saveFileDialog(filename, buffer);
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { ok: true };
 }

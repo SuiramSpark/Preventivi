@@ -1,0 +1,292 @@
+/* ============================================================
+   Dashboard Charts — neon glow su card dark
+   ============================================================ */
+
+.dashboard-charts {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.dashboard-charts .chart-card {
+  background: linear-gradient(180deg, #073330 0%, #052420 100%);
+  border: 1px solid rgba(46, 213, 191, 0.16);
+  border-radius: 18px;
+  padding: 22px;
+  color: #d4e7e3;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+}
+
+.dashboard-charts .chart-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(46, 213, 191, 0.5), transparent);
+  pointer-events: none;
+}
+
+/* Column spans */
+.chart-card--span-3  { grid-column: span 3; }
+.chart-card--span-4  { grid-column: span 4; }
+.chart-card--span-6  { grid-column: span 6; }
+.chart-card--span-8  { grid-column: span 8; }
+.chart-card--span-12 { grid-column: span 12; }
+
+@media (max-width: 1100px) {
+  .chart-card--span-3,
+  .chart-card--span-4,
+  .chart-card--span-6,
+  .chart-card--span-8 { grid-column: span 12; }
+}
+
+/* Card header */
+.chart-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.chart-card-titlebox { min-width: 0; }
+
+.chart-card-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(212, 231, 227, 0.6);
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.chart-card-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #f6f0e6;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.chart-card-sub {
+  font-size: 0.78rem;
+  color: rgba(212, 231, 227, 0.55);
+  margin-top: 2px;
+}
+
+/* Body fills remaining space */
+.chart-card-body {
+  flex: 1;
+  position: relative;
+  min-height: 200px;
+}
+
+.chart-card-body--ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding-top: 8px;
+}
+
+/* Canvas drop-shadow neon (varia per card) */
+.dashboard-charts canvas {
+  filter: drop-shadow(0 0 6px rgba(46, 213, 191, 0.22));
+}
+
+.chart-card[data-accent="orange"] canvas {
+  filter: drop-shadow(0 0 6px rgba(244, 162, 97, 0.28));
+}
+
+.chart-card[data-accent="multi"] canvas {
+  filter: drop-shadow(0 0 6px rgba(232, 121, 197, 0.18));
+}
+
+/* ============================================================
+   Ring counter (SVG)
+   ============================================================ */
+.ring-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.ring-counter-svg {
+  width: 130px;
+  height: 130px;
+  display: block;
+}
+
+.ring-counter-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 10;
+}
+
+.ring-counter-fill {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ring-counter-fill--green {
+  stroke: #2dd4bf;
+  filter: drop-shadow(0 0 6px rgba(46, 213, 191, 0.65));
+}
+
+.ring-counter-fill--orange {
+  stroke: #f4a261;
+  filter: drop-shadow(0 0 6px rgba(244, 162, 97, 0.65));
+}
+
+.ring-counter-number {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ring-counter-number strong {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: #f6f0e6;
+  line-height: 1;
+}
+
+.ring-counter-number span {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(212, 231, 227, 0.55);
+  margin-top: 4px;
+}
+
+.ring-counter-wrap {
+  position: relative;
+  width: 130px;
+  height: 130px;
+}
+
+.ring-counter-label {
+  font-size: 0.78rem;
+  color: rgba(212, 231, 227, 0.7);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ============================================================
+   Donut center label (overlay)
+   ============================================================ */
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.donut-center strong {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #f4a261;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(244, 162, 97, 0.45);
+}
+
+.donut-center span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(212, 231, 227, 0.55);
+  margin-top: 6px;
+}
+
+/* ============================================================
+   Top clients progress bars
+   ============================================================ */
+.top-clients-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.top-client-row {
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 10px 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+}
+
+.top-client-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  background: linear-gradient(90deg, rgba(11, 95, 86, 0.7) 0%, rgba(45, 212, 191, 0.6) 50%, rgba(244, 162, 97, 0.7) 100%);
+  border-radius: 10px;
+  box-shadow: 0 0 14px rgba(46, 213, 191, 0.25), inset 0 0 0 1px rgba(46, 213, 191, 0.25);
+  z-index: 0;
+  transition: width 0.6s ease;
+}
+
+.top-client-name,
+.top-client-value {
+  position: relative;
+  z-index: 1;
+  font-size: 0.85rem;
+}
+
+.top-client-name {
+  font-weight: 600;
+  color: #f6f0e6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.top-client-value {
+  font-weight: 700;
+  color: #f6f0e6;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+.top-client-count {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgba(212, 231, 227, 0.65);
+}
+
+/* Empty states inside chart-card */
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 160px;
+  color: rgba(212, 231, 227, 0.45);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 20px;
+}

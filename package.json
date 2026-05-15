@@ -1,6 +1,6 @@
 {
   "name": "preventivi-pwa",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "private": true,
   "description": "PWA locale per creare preventivi con dashboard, template, stampa e PDF on demand.",
   "main": "electron/main.js",
@@ -9,15 +9,21 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder --win"
+    "electron:build": "vite build && electron-builder --win",
+    "icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
-    "electron-updater": "^6.8.3"
+    "chart.js": "^4.5.1",
+    "electron-updater": "^6.8.3",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
     "electron": "^35.0.0",
     "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
     "vite": "^7.1.7",
     "wait-on": "^8.0.3"
   },
@@ -26,7 +32,7 @@
     "productName": "Preventivi",
     "copyright": "Copyright © 2025",
     "directories": {
-      "output": "C:\\PrevBuild",
+      "output": "C:\\PrevBuild\\v${version}",
       "buildResources": "build"
     },
     "files": [

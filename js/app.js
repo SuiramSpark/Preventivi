@@ -14,8 +14,18 @@ import {
   seedDatabase
 } from "./db.js";
 import { buildFirebaseSnippet, buildFirebaseStatusText, getFirebaseStatus } from "./firebase.js";
-import { printPreviewInNewWindow } from "./pdf.js";
+import {
+  connectCloud,
+  disconnectCloud,
+  getCloudState,
+  onCloudStateChange,
+  isCloudConfigComplete,
+  cloudConfigKey,
+  getConnectedConfigKey,
+} from "./cloud.js";
+import { printPreviewInNewWindow, generatePdfBlob, downloadPdfBlob } from "./pdf.js";
 import { initSidebar } from "./sidebar.js";
+import { installDatePicker } from "./datepicker.js";
 import { buildPreviewMarkup } from "./preview.js";
 import {
   buildQuoteEditHTML,
@@ -38,6 +48,18 @@ import {
   formatDate as _formatDate,
   renderStatusOptions as _renderStatusOptions
 } from "./utils.js";
+import {
+  renderRingCounters,
+  renderMultiLineTrend,
+  renderAreaVolume,
+  renderDonutPaid,
+  renderBarTemplates,
+  renderTopClientsBars,
+  aggregateQuotesByMonth,
+  groupQuotesByClient,
+  groupQuotesByTemplate,
+  countUniqueClients,
+} from "./dashboard-charts.js";
 
 // Wrappers che iniettano lo stato locale dove necessario
 function formatCurrency(value) { return _formatCurrency(value, state.settings.currency || "EUR"); }
@@ -60,13 +82,16 @@ const state = {
   activeCompanyId: null,
   filters: {
     search: "",
-    status: "all",
+    status: "draft",
     sort: "updated-desc",
     dateFrom: "",
     dateTo: ""
   },
   installPromptEvent: null,
-  lastSharedPdf: null
+  lastSharedPdf: null,
+  cloud: { phase: "idle", error: null, uid: null },
+  firebaseEditing: false,
+  activeSettingsTab: "company"
 };
 
 const timers = {
@@ -82,9 +107,9 @@ const refs = {
   installButton: document.querySelector("#installButton"),
   newQuoteButton: document.querySelector("#newQuoteButton"),
   searchQuotes: document.querySelector("#searchQuotes"),
-  statusFilter: document.querySelector("#statusFilter"),
   sortQuotes: document.querySelector("#sortQuotes"),
   quoteCounter: document.querySelector("#quoteCounter"),
+  quoteStatusTabs: document.querySelector("#quoteStatusTabs"),
   quoteList: document.querySelector("#quoteList"),
   filterDateFrom: document.querySelector("#filterDateFrom"),
   filterDateTo: document.querySelector("#filterDateTo"),
@@ -93,8 +118,6 @@ const refs = {
   quotePreview: document.querySelector("#quotePreview"),
   previewTemplateBadge: document.querySelector("#previewTemplateBadge"),
   dashboardMetrics: document.querySelector("#dashboardMetrics"),
-  dashboardPipeline: document.querySelector("#dashboardPipeline"),
-  dashboardRecent: document.querySelector("#dashboardRecent"),
   templateCards: document.querySelector("#templateCards"),
   templateEditor: document.querySelector("#templateEditor"),
   settingsEditor: document.querySelector("#settingsEditor"),
@@ -110,11 +133,77 @@ document.addEventListener("DOMContentLoaded", () => {
 async function init() {
   bindGlobalEvents();
   initSidebar();
+  installDatePicker();
   registerInstallPrompt();
   registerServiceWorker();
+  registerCloudListeners();
   await seedDatabase();
   await hydrateState();
   renderApp();
+
+  if (isCloudConfigComplete(state.settings.firebase)) {
+    state.cloud = { ...getCloudState() };
+    void connectCloud(state.settings.firebase).catch((err) => {
+      console.warn("Auto-connect Firebase fallito:", err);
+      showStatus("Connessione Firebase non riuscita. L'app continua in locale.");
+    });
+  }
+
+  // Mostra lo splash per almeno 800ms anche se il render e' istantaneo
+  setTimeout(hideSplash, 800);
+}
+
+function hideSplash() {
+  const splash = document.getElementById("app-splash");
+  if (!splash) return;
+  splash.classList.add("is-leaving");
+  setTimeout(() => splash.remove(), 400);
+}
+
+function registerCloudListeners() {
+  onCloudStateChange((s) => {
+    state.cloud = { ...s };
+    renderSettingsEditor();
+    renderSettingsSummary();
+  });
+
+  window.addEventListener("cloud:data-changed", async (event) => {
+    const detail = event.detail || {};
+    try {
+      await refreshStateFromDb({ touchedStore: detail.store });
+      renderDashboard();
+      renderQuoteList();
+      renderSettingsSummary();
+      if (detail.store === STORES.templates) {
+        renderTemplateCards();
+        renderTemplateEditor();
+      }
+      if (detail.store === STORES.companies) {
+        renderCompaniesEditor();
+      }
+    } catch (err) {
+      console.warn("Refresh post sync fallito:", err);
+    }
+  });
+}
+
+async function refreshStateFromDb({ touchedStore } = {}) {
+  if (!touchedStore || touchedStore === STORES.quotes) {
+    state.quotes = sortQuotes(await getAllRecords(STORES.quotes));
+  }
+  if (!touchedStore || touchedStore === STORES.templates) {
+    state.templates = mergeTemplates(await getAllRecords(STORES.templates));
+  }
+  if (!touchedStore || touchedStore === STORES.companies) {
+    state.companies = await getAllRecords(STORES.companies);
+    if (!state.companies.find((c) => c.id === state.activeCompanyId)) {
+      state.activeCompanyId = state.companies[0]?.id ?? null;
+    }
+  }
+  if (!touchedStore || touchedStore === STORES.settings) {
+    const fresh = await getRecord(STORES.settings, DEFAULT_SETTINGS.id);
+    if (fresh) state.settings = mergeSettings(fresh);
+  }
 }
 
 function bindGlobalEvents() {
@@ -162,8 +251,10 @@ function bindGlobalEvents() {
     renderQuoteList();
   });
 
-  refs.statusFilter.addEventListener("change", (event) => {
-    state.filters.status = event.target.value;
+  refs.quoteStatusTabs?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-status-tab]");
+    if (!btn) return;
+    state.filters.status = btn.dataset.statusTab;
     renderQuoteList();
   });
 
@@ -183,9 +274,8 @@ function bindGlobalEvents() {
   });
 
   refs.clearFilters?.addEventListener("click", () => {
-    state.filters = { search: "", status: "all", sort: "updated-desc", dateFrom: "", dateTo: "" };
+    state.filters = { search: "", status: "draft", sort: "updated-desc", dateFrom: "", dateTo: "" };
     refs.searchQuotes.value = "";
-    refs.statusFilter.value = "all";
     refs.sortQuotes.value = "updated-desc";
     if (refs.filterDateFrom) refs.filterDateFrom.value = "";
     if (refs.filterDateTo)   refs.filterDateTo.value   = "";
@@ -381,20 +471,139 @@ function bindGlobalEvents() {
     scheduleSettingsSave();
   });
 
-  refs.settingsEditor.addEventListener("click", (event) => {
+  const settingsActionHandler = (event) => {
     const button = event.target.closest("[data-settings-action]");
-    if (!button) {
-      return;
-    }
+    if (!button) return;
 
     if (button.dataset.settingsAction === "save") {
       void flushSettingsSave(false);
     }
-
     if (button.dataset.settingsAction === "copy-firebase") {
       void copyFirebaseSnippet();
     }
+    if (button.dataset.settingsAction === "firebase-edit") {
+      void enableFirebaseEdit();
+    }
+    if (button.dataset.settingsAction === "firebase-cancel") {
+      state.firebaseEditing = false;
+      renderSettingsEditor();
+      renderSettingsSummary();
+    }
+    if (button.dataset.settingsAction === "copy-firestore-rules") {
+      void copyFirestoreRules();
+    }
+  };
+
+  refs.settingsEditor.addEventListener("click", settingsActionHandler);
+  refs.settingsSummary.addEventListener("click", settingsActionHandler);
+
+  document.querySelector(".settings-tabs")?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-settings-tab]");
+    if (!btn) return;
+    switchSettingsTab(btn.dataset.settingsTab);
   });
+
+  refs.settingsSummary.addEventListener("input", (event) => {
+    if (!event.target.matches('[name^="firebase."]')) return;
+    scheduleSettingsSave();
+  });
+}
+
+function switchSettingsTab(tab) {
+  if (!tab || tab === state.activeSettingsTab) return;
+  state.activeSettingsTab = tab;
+  applySettingsTab();
+}
+
+function applySettingsTab() {
+  const tab = state.activeSettingsTab || "company";
+  document.querySelectorAll("[data-settings-tab]").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.settingsTab === tab);
+  });
+  document.querySelectorAll("[data-settings-pane]").forEach((pane) => {
+    pane.hidden = pane.dataset.settingsPane !== tab;
+  });
+}
+
+async function enableFirebaseEdit() {
+  const confirmed = await showConfirmModal(
+    "Modifica configurazione Firebase",
+    "Attenzione: modificare la configurazione può interrompere la sincronizzazione e collegare l'app a un progetto diverso. Vuoi davvero modificare?"
+  );
+  if (!confirmed) return;
+  state.firebaseEditing = true;
+  renderSettingsEditor();
+}
+
+function renderFirebaseGuide() {
+  return `
+    <details class="firebase-setup" open>
+      <summary><span>Guida: come creare il tuo progetto Firebase</span><span class="muted">~5 minuti</span></summary>
+      <div class="firebase-guide stack">
+        <p class="muted">Segui questi passi nella console Firebase. Al termine torna qui, incolla le chiavi e premi <strong>Salva impostazioni</strong>.</p>
+
+        <ol class="firebase-steps">
+          <li>
+            <strong>Apri la console Firebase</strong><br>
+            Vai su <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a> e accedi con il tuo account Google.
+          </li>
+          <li>
+            <strong>Crea un nuovo progetto</strong><br>
+            Clicca <em>Aggiungi progetto</em>, scegli un nome (es. "Preventivi"), accetta i termini e prosegui.
+            Quando ti chiede di abilitare Google Analytics puoi <strong>disabilitarlo</strong> (non serve). Premi <em>Crea progetto</em> e aspetta che finisca.
+          </li>
+          <li>
+            <strong>Aggiungi un'app web al progetto</strong><br>
+            Nella home del progetto clicca l'icona <strong>&lt;/&gt;</strong> (Web). Dai un nickname (es. "Preventivi PWA"), <strong>non</strong> attivare Firebase Hosting, premi <em>Registra app</em>.
+            Firebase ti mostra un blocco di codice con le chiavi: lascialo aperto, ti servono fra poco.
+          </li>
+          <li>
+            <strong>Abilita l'accesso anonimo</strong><br>
+            Nel menu laterale: <em>Build → Authentication → Inizia</em>. Vai sulla scheda <em>Sign-in method</em>, clicca <strong>Anonymous</strong>, attiva l'interruttore e <em>Salva</em>.
+            Questo permette all'app di identificarsi senza che tu debba creare username/password.
+          </li>
+          <li>
+            <strong>Crea il database Firestore</strong><br>
+            Nel menu laterale: <em>Build → Firestore Database → Crea database</em>. Scegli una zona (es. <code>eur3</code> o quella più vicina). Avvia in <strong>modalità produzione</strong> (le regole le imposti al prossimo passo). Premi <em>Abilita</em> e attendi.
+          </li>
+          <li>
+            <strong>Incolla le regole di sicurezza</strong><br>
+            Dentro Firestore vai alla scheda <em>Regole</em>. Cancella tutto e incolla queste righe:
+            <pre class="code-block">${escapeHtml(FIRESTORE_RULES)}</pre>
+            <div class="action-row"><button class="secondary" type="button" data-settings-action="copy-firestore-rules">Copia regole</button></div>
+            Premi <strong>Pubblica</strong>. Queste regole permettono solo a te di leggere/scrivere i tuoi dati.
+          </li>
+          <li>
+            <strong>Copia le chiavi e incollale qui</strong><br>
+            Clicca l'icona <strong>⚙️ (Impostazioni progetto)</strong> in alto a sinistra → tab <em>Generali</em> → scorri fino a <em>Le tue app</em>. Vedrai un riquadro <code>firebaseConfig</code> con le chiavi.
+            Copia i valori e incollali nei campi qui sotto (corrispondenza diretta: <code>apiKey</code> → API key, <code>authDomain</code> → Auth domain, ecc.).
+            Quando hai finito premi <strong>Salva impostazioni</strong>: l'app si collegherà e sincronizzerà i preventivi.
+          </li>
+        </ol>
+
+        <p class="muted firebase-guide-footer"><strong>Backup di sicurezza:</strong> salva da qualche parte questi 6 valori (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId). Se reinstalli l'app, basta reincollarli qui per ritrovare tutti i preventivi.</p>
+      </div>
+    </details>
+  `;
+}
+
+const FIRESTORE_RULES = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}`;
+
+async function copyFirestoreRules() {
+  try {
+    await navigator.clipboard.writeText(FIRESTORE_RULES);
+    showStatus("Regole Firestore copiate.");
+  } catch (error) {
+    console.error(error);
+    showStatus("Impossibile copiare le regole.");
+  }
 }
 
 function registerInstallPrompt() {
@@ -452,6 +661,7 @@ function renderApp() {
   renderSettingsSummary();
   if (state.activeSection === "quoteEdit") renderQuoteEditSection();
   renderCompaniesEditor();
+  applySettingsTab();
 }
 
 function renderQuoteEditSection() {
@@ -611,22 +821,136 @@ function renderDashboard() {
     metricCard("In scadenza",   `${expiringCount}`,              `${expiredCount} già scaduti`,                expiringCount > 0 || expiredCount > 0 ? "warn" : ""),
   ].join("");
 
-  refs.dashboardPipeline.innerHTML = buildPipeline(qt, currency);
-  refs.dashboardRecent.innerHTML   = buildRecentList(qt, currency);
+  // ====== Nuova dashboard a grafici neon ======
+  const ringsEl     = document.querySelector("#chartRings");
+  const multiLineEl = document.querySelector("#chartMultiLine");
+  const donutEl     = document.querySelector("#chartDonutPaid");
+  const areaEl      = document.querySelector("#chartAreaVolume");
+  const barsEl      = document.querySelector("#chartBarTemplates");
+  const clientsEl   = document.querySelector("#chartTopClients");
 
-  const clientsEl = document.querySelector("#dashboardClients");
-  if (clientsEl) clientsEl.innerHTML = buildTopClients(qt, currency);
+  const monthAgg = aggregateQuotesByMonth(qt);
+  const paidCount = qt.filter(({ q }) => q.status === "paid").length;
 
-  const trendEl = document.querySelector("#dashboardTrend");
-  if (trendEl) trendEl.innerHTML = buildMonthlyTrend(qt, currency);
+  if (ringsEl) {
+    renderRingCounters(ringsEl, {
+      totalQuotes:  quotes.length,
+      totalClients: countUniqueClients(quotes),
+    });
+  }
+
+  if (multiLineEl) {
+    void renderMultiLineTrend(multiLineEl, {
+      labels:            monthAgg.labels,
+      paid:              monthAgg.paid,
+      confirmedApproved: monthAgg.confirmedApproved,
+      sentDraft:         monthAgg.sentDraft,
+    });
+  }
+
+  if (donutEl) {
+    void renderDonutPaid(donutEl, { paidCount, totalCount: quotes.length });
+  }
+
+  if (areaEl) {
+    void renderAreaVolume(areaEl, { labels: monthAgg.labels, counts: monthAgg.counts });
+  }
+
+  if (barsEl) {
+    void renderBarTemplates(barsEl, groupQuotesByTemplate(quotes, state.templates, 5));
+  }
+
+  if (clientsEl) {
+    renderTopClientsBars(clientsEl, groupQuotesByClient(qt, 5));
+  }
 }
 
 function renderQuoteList() {
+  renderQuoteStatusTabs();
   const filteredQuotes = getFilteredQuotes();
   refs.quoteCounter.textContent = `${filteredQuotes.length} risultati`;
   refs.quoteList.innerHTML = filteredQuotes.length
     ? filteredQuotes.map((quote) => renderQuoteCard(quote)).join("")
-    : emptyState("Nessun preventivo trovato", "Prova a cambiare i filtri oppure crea un nuovo preventivo dal pulsante in alto.");
+    : emptyState("Nessun preventivo in questa categoria", "Cambia tab in alto oppure crea un nuovo preventivo dal pulsante in alto a destra.");
+}
+
+const STATUS_TABS = [
+  { key: "draft",     label: "Bozze" },
+  { key: "sent",      label: "Inviati" },
+  { key: "approved",  label: "Approvati" },
+  { key: "confirmed", label: "Confermati" },
+  { key: "paid",      label: "Pagati" },
+  { key: "all",       label: "Tutti" },
+];
+
+function renderQuoteStatusTabs() {
+  if (!refs.quoteStatusTabs) return;
+
+  // Conta per stato a partire dai preventivi che matchano gli ALTRI filtri (cerca/date/ordine),
+  // cosi il counter di ogni tab riflette quanti elementi vedresti se cliccassi quella tab.
+  const baseList = filterQuotesWithoutStatus();
+  const counts = baseList.reduce((acc, q) => {
+    acc[q.status] = (acc[q.status] || 0) + 1;
+    acc.all = (acc.all || 0) + 1;
+    return acc;
+  }, {});
+
+  const active = state.filters.status;
+  refs.quoteStatusTabs.innerHTML = STATUS_TABS.map((tab) => {
+    const count = counts[tab.key] || 0;
+    const isActive = tab.key === active;
+    return `
+      <button type="button" role="tab" aria-selected="${isActive}"
+              class="quote-status-tab${isActive ? " is-active" : ""}"
+              data-status-tab="${tab.key}">
+        <span class="quote-status-tab-label">${tab.label}</span>
+        <span class="quote-status-tab-count">${count}</span>
+      </button>
+    `;
+  }).join("");
+}
+
+function normalizeText(value) {
+  return (value ?? "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+function parseFilterDate(value, endOfDay = false) {
+  if (!value) return null;
+  const [y, m, d] = String(value).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0).getTime();
+}
+
+function buildQuoteHaystack(quote) {
+  return normalizeText([
+    quote.number, quote.title,
+    quote.clientName, quote.clientCompany,
+    quote.clientEmail, quote.clientPhone,
+    quote.clientVatId,
+  ].filter(Boolean).join(" "));
+}
+
+function getQuoteUpdatedAtMs(quote) {
+  const ms = quote?.updatedAt ? new Date(quote.updatedAt).getTime() : NaN;
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function filterQuotesWithoutStatus() {
+  const searchTerm = normalizeText(state.filters.search);
+  let dateFromMs = parseFilterDate(state.filters.dateFrom, false);
+  let dateToMs   = parseFilterDate(state.filters.dateTo, true);
+  // Se "Dal" > "Al", swap silenziosamente per evitare zero risultati involontari
+  if (dateFromMs && dateToMs && dateFromMs > dateToMs) {
+    const tmp = dateFromMs; dateFromMs = dateToMs; dateToMs = tmp;
+  }
+
+  return state.quotes.filter((quote) => {
+    const matchesSearch = !searchTerm || buildQuoteHaystack(quote).includes(searchTerm);
+    const updatedAt = getQuoteUpdatedAtMs(quote);
+    const matchesFrom = !dateFromMs || updatedAt >= dateFromMs;
+    const matchesTo   = !dateToMs   || updatedAt <= dateToMs;
+    return matchesSearch && matchesFrom && matchesTo;
+  });
 }
 
 function renderQuoteEditor() {
@@ -825,34 +1149,6 @@ function renderSettingsEditor() {
     <form id="settingsForm" class="stack">
       <div class="form-grid">
         <label class="field">
-          <span>Ragione sociale</span>
-          <input name="companyName" value="${escapeAttribute(state.settings.companyName)}">
-        </label>
-        <label class="field">
-          <span>P. IVA</span>
-          <input name="companyVatId" value="${escapeAttribute(state.settings.companyVatId)}">
-        </label>
-        <label class="field full">
-          <span>Indirizzo</span>
-          <input name="address" value="${escapeAttribute(state.settings.address)}">
-        </label>
-        <label class="field">
-          <span>Email</span>
-          <input name="email" type="email" value="${escapeAttribute(state.settings.email)}">
-        </label>
-        <label class="field">
-          <span>Telefono</span>
-          <input name="phone" value="${escapeAttribute(state.settings.phone)}">
-        </label>
-        <label class="field">
-          <span>PEC</span>
-          <input name="companyPec" value="${escapeAttribute(state.settings.companyPec ?? "")}">
-        </label>
-        <label class="field">
-          <span>Sito web</span>
-          <input name="website" value="${escapeAttribute(state.settings.website)}">
-        </label>
-        <label class="field">
           <span>Prefisso numerazione</span>
           <input name="numberingPrefix" value="${escapeAttribute(state.settings.numberingPrefix)}">
         </label>
@@ -878,40 +1174,59 @@ function renderSettingsEditor() {
         </label>
       </div>
 
-      <div class="firebase-box stack">
-        <div>
-          <p class="eyebrow">Firebase</p>
-          <h4>Config cloud opzionale</h4>
-        </div>
-        <div class="form-grid">
-          ${renderFirebaseField("apiKey", "API key")}
-          ${renderFirebaseField("authDomain", "Auth domain")}
-          ${renderFirebaseField("projectId", "Project ID")}
-          ${renderFirebaseField("storageBucket", "Storage bucket")}
-          ${renderFirebaseField("messagingSenderId", "Messaging sender ID")}
-          ${renderFirebaseField("appId", "App ID")}
-          ${renderFirebaseField("measurementId", "Measurement ID")}
-        </div>
-      </div>
-
-      <div class="action-row">
-        <button class="primary" type="button" data-settings-action="save">Salva impostazioni</button>
-        <button class="secondary" type="button" data-settings-action="copy-firebase">Copia snippet Firebase</button>
-      </div>
     </form>
   `;
 }
 
+function renderFirebaseConfigBox() {
+  const locked = isFirebaseLocked();
+  return `
+    <div class="firebase-box stack">
+      <div class="firebase-box-header">
+        <div>
+          <p class="eyebrow">Firebase</p>
+          <h4>Le tue chiavi</h4>
+        </div>
+        <span class="badge ${getCloudMeta().className}">${getCloudMeta().label}</span>
+      </div>
+      ${state.cloud?.phase === "error" && state.cloud?.error ? `<p class="muted" style="color:#c0392b">${escapeHtml(state.cloud.error)}</p>` : ""}
+
+      <div class="form-grid">
+        ${renderFirebaseField("apiKey", "API key")}
+        ${renderFirebaseField("authDomain", "Auth domain")}
+        ${renderFirebaseField("projectId", "Project ID")}
+        ${renderFirebaseField("storageBucket", "Storage bucket")}
+        ${renderFirebaseField("messagingSenderId", "Messaging sender ID")}
+        ${renderFirebaseField("appId", "App ID")}
+        ${renderFirebaseField("measurementId", "Measurement ID (opzionale)")}
+      </div>
+
+      ${locked ? `
+        <div class="action-row">
+          <button class="secondary" type="button" data-settings-action="firebase-edit">Modifica configurazione</button>
+        </div>
+      ` : state.firebaseEditing ? `
+        <div class="action-row">
+          <button class="secondary" type="button" data-settings-action="firebase-cancel">Annulla modifica</button>
+        </div>
+      ` : ""}
+
+      <div class="action-row">
+        <button class="primary" type="button" data-settings-action="save" form="settingsForm">Salva impostazioni</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderSettingsSummary() {
-  const firebaseStatus = getFirebaseStatus(state.settings.firebase);
+  const meta = getCloudMeta();
   const quotesCount = state.quotes.length;
   const totalValue = state.quotes.reduce((sum, quote) => sum + calculateQuoteTotals(quote).total, 0);
-  const snippet = buildFirebaseSnippet(state.settings.firebase);
 
   refs.settingsSummary.innerHTML = `
     <div class="summary-box stack">
-      <span class="badge ${firebaseStatus.isReady ? "" : "subtle"}">${firebaseStatus.isReady ? "Firebase pronto" : "Firebase incompleto"}</span>
-      <p>${escapeHtml(buildFirebaseStatusText(state.settings.firebase))}</p>
+      <span class="badge ${meta.className}">${meta.label}</span>
+      <p>${escapeHtml(meta.text)}</p>
       <div class="summary-grid">
         <div>
           <span class="muted">Archivio locale</span>
@@ -923,14 +1238,8 @@ function renderSettingsSummary() {
         </div>
       </div>
     </div>
-
-    <div class="stack">
-      <div>
-        <p class="eyebrow">Snippet di aggancio</p>
-        <h4>Bootstrap Firebase</h4>
-      </div>
-      <pre class="code-block">${escapeHtml(snippet)}</pre>
-    </div>
+    ${state.cloud?.phase === "connected" ? "" : renderFirebaseGuide()}
+    ${renderFirebaseConfigBox()}
   `;
 }
 
@@ -1193,12 +1502,31 @@ function renderTemplateCard(template) {
 }
 
 function renderFirebaseField(field, label) {
+  const locked = isFirebaseLocked();
   return `
     <label class="field">
       <span>${label}</span>
-      <input name="firebase.${field}" value="${escapeAttribute(state.settings.firebase[field])}">
+      <input name="firebase.${field}" form="settingsForm" value="${escapeAttribute(state.settings.firebase[field])}"${locked ? " disabled" : ""}>
     </label>
   `;
+}
+
+function isFirebaseLocked() {
+  const phase = state.cloud?.phase;
+  const connectedOrConnecting = phase === "connected" || phase === "connecting";
+  return connectedOrConnecting && !state.firebaseEditing;
+}
+
+const CLOUD_PHASE_META = {
+  idle: { label: "Offline", className: "subtle", text: "L'app funziona solo in locale. Inserisci la configurazione Firebase per sincronizzare." },
+  connecting: { label: "Connessione…", className: "subtle", text: "Stiamo collegando l'app al tuo progetto Firebase." },
+  connected: { label: "Connesso", className: "", text: "Sincronizzazione attiva: i preventivi vengono salvati anche sul tuo progetto Firebase." },
+  error: { label: "Errore", className: "subtle", text: "Connessione Firebase non riuscita. L'app continua a funzionare in locale." },
+};
+
+function getCloudMeta() {
+  const phase = state.cloud?.phase || "idle";
+  return CLOUD_PHASE_META[phase] || CLOUD_PHASE_META.idle;
 }
 
 async function createQuoteAndOpen() {
@@ -1356,7 +1684,7 @@ function scheduleTemplateSave() {
 function scheduleSettingsSave() {
   clearTimeout(timers.settings);
   timers.settings = setTimeout(() => {
-    void flushSettingsSave(false);
+    void flushSettingsSave(false, { manageCloud: false });
   }, 450);
 }
 
@@ -1387,17 +1715,69 @@ async function flushTemplateSave(showFeedback = true) {
   }
 }
 
-async function flushSettingsSave(showFeedback = true) {
+async function flushSettingsSave(showFeedback = true, { manageCloud = true } = {}) {
   clearTimeout(timers.settings);
   const settings = readSettingsFromForm();
   if (!settings) {
     return;
   }
 
+  const nextFirebase = settings.firebase || {};
+  const connectedKey = getConnectedConfigKey();
+  const wasComplete = !!connectedKey;
+  const willBeComplete = isCloudConfigComplete(nextFirebase);
+  const changed = (connectedKey || "") !== cloudConfigKey(nextFirebase);
+
+  if (manageCloud) {
+    if (wasComplete && !willBeComplete) {
+      const confirmed = await showConfirmModal(
+        "Disconnetti Firebase",
+        "Stai svuotando la configurazione Firebase. L'app continuerà a funzionare in locale ma i preventivi non saranno più sincronizzati. Procedere?"
+      );
+      if (!confirmed) {
+        renderSettingsEditor();
+        return;
+      }
+    } else if (wasComplete && willBeComplete && changed) {
+      const confirmed = await showConfirmModal(
+        "Modifica configurazione Firebase",
+        "Stai cambiando il progetto Firebase. La connessione attuale verrà chiusa e l'app si collegherà al nuovo progetto. I dati locali resteranno sul tuo PC. Procedere?"
+      );
+      if (!confirmed) {
+        renderSettingsEditor();
+        return;
+      }
+    }
+  }
+
+  settings.updatedAt = new Date().toISOString();
   state.settings = settings;
+  if (manageCloud) state.firebaseEditing = false;
   await putRecord(STORES.settings, settings);
-  if (showFeedback) {
+
+  if (manageCloud && wasComplete && (!willBeComplete || changed)) {
+    try {
+      await disconnectCloud();
+    } catch (err) {
+      console.warn("Disconnect Firebase fallito:", err);
+    }
+  }
+
+  if (manageCloud && willBeComplete && (changed || !wasComplete)) {
+    try {
+      await connectCloud(nextFirebase);
+      if (showFeedback) showStatus("Connesso a Firebase e sincronizzato.");
+    } catch (err) {
+      console.error(err);
+      showStatus(`Connessione Firebase fallita: ${err?.message || err}`);
+    }
+  } else if (showFeedback) {
     showStatus("Impostazioni salvate.");
+  }
+
+  if (manageCloud) {
+    renderSettingsEditor();
+    renderSettingsSummary();
   }
 }
 
@@ -1496,13 +1876,13 @@ function readSettingsFromForm() {
 
   return mergeSettings({
     id: "app",
-    companyName: `${formData.get("companyName") ?? ""}`.trim(),
-    companyVatId: `${formData.get("companyVatId") ?? ""}`.trim(),
-    address: `${formData.get("address") ?? ""}`.trim(),
-    email: `${formData.get("email") ?? ""}`.trim(),
-    phone: `${formData.get("phone") ?? ""}`.trim(),
-    website: `${formData.get("website") ?? ""}`.trim(),
-    companyPec: `${formData.get("companyPec") ?? ""}`.trim(),
+    companyName: state.settings.companyName ?? "",
+    companyVatId: state.settings.companyVatId ?? "",
+    address: state.settings.address ?? "",
+    email: state.settings.email ?? "",
+    phone: state.settings.phone ?? "",
+    website: state.settings.website ?? "",
+    companyPec: state.settings.companyPec ?? "",
     numberingPrefix: `${formData.get("numberingPrefix") ?? "PREV"}`.trim() || "PREV",
     nextQuoteNumber: Math.max(1, readNumber(formData.get("nextQuoteNumber"), 1)),
     defaultVatRate: readNumber(formData.get("defaultVatRate"), 22),
@@ -1521,64 +1901,75 @@ function readSettingsFromForm() {
   });
 }
 
-async function generatePdfForCurrentQuote() {
+async function buildPdfForActiveQuote() {
   if (state.activeSection === "quoteEdit") {
     await flushQEQuoteSave(false);
   } else {
     await flushQuoteSave(false);
   }
   const quote = getActiveQuote();
-  if (!quote) return;
-  const template = getTemplateById(quote.templateId);
-  const company = getCompanyForQuote(quote);
-  const markup = buildPreviewMarkup(quote, template, state.settings, company);
-  const ok = printPreviewInNewWindow(quote, template, markup);
-  if (!ok) showStatus("Popup bloccato dal browser. Sblocca i popup per questa pagina.");
+  if (!quote) return null;
+  const template     = getTemplateById(quote.templateId);
+  const company      = getCompanyForQuote(quote);
+  const previewMarkup = buildPreviewMarkup(quote, template, state.settings, company);
+  const blob         = await generatePdfBlob({ quote, template, previewMarkup });
+  const filename     = `${safeFileName(quote.number || "preventivo")}.pdf`;
+  return { quote, blob, filename };
+}
+
+async function generatePdfForCurrentQuote() {
+  try {
+    showStatus("Generazione PDF…");
+    const result = await buildPdfForActiveQuote();
+    if (!result) return;
+    const saveResult = await downloadPdfBlob(result.blob, result.filename);
+    if (saveResult?.ok === false) {
+      showStatus("Salvataggio PDF annullato.");
+    } else {
+      showStatus(`PDF salvato: ${result.filename}`);
+    }
+  } catch (error) {
+    console.error(error);
+    showStatus(`Generazione PDF fallita: ${error?.message || error}`);
+  }
 }
 
 async function shareCurrentQuote() {
-  if (state.activeSection === "quoteEdit") {
-    await flushQEQuoteSave(false);
-  } else {
-    await flushQuoteSave(false);
-  }
-  const quote = getActiveQuote();
-  if (!quote) {
-    return;
-  }
-
-  const totals = calculateQuoteTotals(quote);
-  const shareData = {
-    title: quote.title || quote.number,
-    text: `${quote.number} - ${quote.title}\nCliente: ${quote.clientCompany || quote.clientName || "N/D"}\nTotale: ${formatCurrency(totals.total)}`
-  };
-
   try {
-    // In Electron navigator.share apre il dialog di Windows che non funziona senza URL
-    const isElectron = !!window.electronAPI;
+    showStatus("Preparazione condivisione…");
+    const result = await buildPdfForActiveQuote();
+    if (!result) return;
 
-    if (!isElectron && navigator.share && state.lastSharedPdf?.quoteId === quote.id && state.lastSharedPdf.file && navigator.canShare?.({ files: [state.lastSharedPdf.file] })) {
-      await navigator.share({
-        ...shareData,
-        files: [state.lastSharedPdf.file]
-      });
+    const { quote, blob, filename } = result;
+    const file = new File([blob], filename, { type: "application/pdf" });
+    const totals = calculateQuoteTotals(quote);
+    const shareData = {
+      title: quote.title || quote.number,
+      text: `${quote.number} — ${quote.title || "Preventivo"}\nCliente: ${quote.clientCompany || quote.clientName || "N/D"}\nTotale: ${formatCurrency(totals.total)}`,
+      files: [file],
+    };
+
+    if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+      await navigator.share(shareData);
       showStatus("Preventivo condiviso.");
       return;
     }
 
-    if (!isElectron && navigator.share) {
-      await navigator.share(shareData);
-      showStatus("Riepilogo condiviso.");
+    if (navigator.share) {
+      const { files, ...textOnly } = shareData;
+      await navigator.share(textOnly);
+      showStatus("Riepilogo condiviso (PDF non allegato su questa piattaforma).");
       return;
     }
 
-    await navigator.clipboard.writeText(shareData.text);
-    showStatus("Riepilogo copiato negli appunti.");
+    // Fallback: scarica il PDF e copia il riepilogo negli appunti
+    await downloadPdfBlob(blob, filename);
+    try { await navigator.clipboard.writeText(shareData.text); } catch (_) { /* ignore */ }
+    showStatus("PDF salvato e riepilogo copiato negli appunti. Allegalo manualmente al messaggio.");
   } catch (error) {
-    if (error?.name !== "AbortError") {
-      console.error(error);
-      showStatus("Condivisione non riuscita.");
-    }
+    if (error?.name === "AbortError") return;
+    console.error(error);
+    showStatus("Condivisione non riuscita.");
   }
 }
 
@@ -1593,52 +1984,70 @@ async function copyFirebaseSnippet() {
 }
 
 function getFilteredQuotes() {
-  const searchTerm = state.filters.search.toLowerCase();
-  const dateFromMs = state.filters.dateFrom ? new Date(state.filters.dateFrom).getTime() : null;
-  const dateToMs   = state.filters.dateTo   ? new Date(state.filters.dateTo + "T23:59:59").getTime() : null;
+  const searchTerm = normalizeText(state.filters.search);
+  let dateFromMs = parseFilterDate(state.filters.dateFrom, false);
+  let dateToMs   = parseFilterDate(state.filters.dateTo, true);
+  if (dateFromMs && dateToMs && dateFromMs > dateToMs) {
+    const tmp = dateFromMs; dateFromMs = dateToMs; dateToMs = tmp;
+  }
 
   const filtered = state.quotes.filter((quote) => {
-    const haystack = [
-      quote.number, quote.title,
-      quote.clientName, quote.clientCompany,
-      quote.clientEmail, quote.clientPhone
-    ].join(" ").toLowerCase();
-
-    const matchesSearch = !searchTerm || haystack.includes(searchTerm);
+    const matchesSearch = !searchTerm || buildQuoteHaystack(quote).includes(searchTerm);
     const matchesStatus = state.filters.status === "all" || quote.status === state.filters.status;
-
-    const updatedAt = new Date(quote.updatedAt).getTime();
+    const updatedAt = getQuoteUpdatedAtMs(quote);
     const matchesFrom = !dateFromMs || updatedAt >= dateFromMs;
     const matchesTo   = !dateToMs   || updatedAt <= dateToMs;
-
     return matchesSearch && matchesStatus && matchesFrom && matchesTo;
   });
 
-  return filtered.sort((left, right) => compareQuotes(left, right, state.filters.sort));
+  // Decorate-sort-undecorate per stabilita' e per evitare di ricalcolare i totali nel comparator.
+  const decorated = filtered.map((quote, index) => ({ quote, index }));
+  decorated.sort((a, b) => {
+    const cmp = compareQuotes(a.quote, b.quote, state.filters.sort);
+    return cmp !== 0 ? cmp : a.index - b.index;
+  });
+  return decorated.map((entry) => entry.quote);
+}
+
+function getQuoteSortableTotal(quote) {
+  try {
+    const total = calculateQuoteTotals(quote)?.total;
+    return Number.isFinite(total) ? total : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function getQuoteClientKey(quote) {
+  const raw = (quote?.clientCompany || quote?.clientName || "").toString().trim();
+  return raw;
 }
 
 function compareQuotes(left, right, mode) {
   if (mode === "updated-asc") {
-    return new Date(left.updatedAt) - new Date(right.updatedAt);
+    return getQuoteUpdatedAtMs(left) - getQuoteUpdatedAtMs(right);
   }
 
   if (mode === "total-desc") {
-    return calculateQuoteTotals(right).total - calculateQuoteTotals(left).total;
+    return getQuoteSortableTotal(right) - getQuoteSortableTotal(left);
   }
 
   if (mode === "total-asc") {
-    return calculateQuoteTotals(left).total - calculateQuoteTotals(right).total;
+    return getQuoteSortableTotal(left) - getQuoteSortableTotal(right);
   }
 
   if (mode === "client-asc") {
-    return `${left.clientCompany || left.clientName}`.localeCompare(`${right.clientCompany || right.clientName}`, "it");
+    const leftKey  = getQuoteClientKey(left);
+    const rightKey = getQuoteClientKey(right);
+    // Stringhe vuote sempre in fondo
+    if (!leftKey && !rightKey) return 0;
+    if (!leftKey) return 1;
+    if (!rightKey) return -1;
+    return leftKey.localeCompare(rightKey, "it", { sensitivity: "base", numeric: true });
   }
 
-  if (mode === "status-asc") {
-    return `${statusLabels[left.status]}`.localeCompare(`${statusLabels[right.status]}`, "it");
-  }
-
-  return new Date(right.updatedAt) - new Date(left.updatedAt);
+  // default: updated-desc
+  return getQuoteUpdatedAtMs(right) - getQuoteUpdatedAtMs(left);
 }
 
 function sortQuotes(quotes) {

@@ -1,0 +1,95 @@
+/* css/splash.css — Splashscreen animato per la PWA */
+
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background:
+    radial-gradient(circle at 50% 35%, #0b5f56 0%, #08433d 55%, #053130 100%);
+  color: #fbf6ec;
+  opacity: 1;
+  transition: opacity 350ms ease;
+  user-select: none;
+  pointer-events: all;
+}
+
+.app-splash.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-splash__logo {
+  width: 160px;
+  height: 160px;
+  display: block;
+  filter: drop-shadow(0 0 24px rgba(244, 162, 97, 0.45));
+  animation: splash-pulse 2.2s ease-in-out infinite;
+}
+
+.app-splash__title {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin: 0;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: splash-title-in 700ms ease 200ms forwards;
+}
+
+.app-splash__loader {
+  position: relative;
+  width: 200px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  opacity: 0;
+  animation: splash-title-in 500ms ease 350ms forwards;
+}
+
+.app-splash__loader::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(244, 162, 97, 0) 0%,
+    rgba(244, 162, 97, 0.85) 50%,
+    rgba(244, 162, 97, 0) 100%);
+  animation: splash-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes splash-pulse {
+  0%, 100% { transform: scale(1);    opacity: 0.95; }
+  50%      { transform: scale(1.08); opacity: 1;    }
+}
+
+@keyframes splash-title-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes splash-shimmer {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-splash__logo,
+  .app-splash__title,
+  .app-splash__loader,
+  .app-splash__loader::before {
+    animation: none !important;
+  }
+  .app-splash__title,
+  .app-splash__loader { opacity: 1; transform: none; }
+}

@@ -135,18 +135,34 @@ export async function getAllRecords(storeName) {
   return Array.isArray(result) ? result : [];
 }
 
-export async function putRecord(storeName, value) {
+let cloudHook = null;
+export function setCloudHook(hook) { cloudHook = hook; }
+export function getCloudHook() { return cloudHook; }
+
+export async function putRecord(storeName, value, options = {}) {
   const db = await openDatabase();
   const transaction = db.transaction(storeName, "readwrite");
   const request = transaction.objectStore(storeName).put(value);
-  return requestToPromise(request);
+  const result = await requestToPromise(request);
+  if (cloudHook && !options.skipCloud) {
+    Promise.resolve(cloudHook.onPut?.(storeName, value)).catch((err) =>
+      console.warn(`Cloud sync put failed (${storeName}):`, err)
+    );
+  }
+  return result;
 }
 
-export async function deleteRecord(storeName, id) {
+export async function deleteRecord(storeName, id, options = {}) {
   const db = await openDatabase();
   const transaction = db.transaction(storeName, "readwrite");
   const request = transaction.objectStore(storeName).delete(id);
-  return requestToPromise(request);
+  const result = await requestToPromise(request);
+  if (cloudHook && !options.skipCloud) {
+    Promise.resolve(cloudHook.onDelete?.(storeName, id)).catch((err) =>
+      console.warn(`Cloud sync delete failed (${storeName}):`, err)
+    );
+  }
+  return result;
 }
 
 function addDays(date, days) {

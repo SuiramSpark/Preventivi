@@ -1,4 +1,4 @@
-const CACHE_NAME = "preventivi-pwa-v3";
+const CACHE_NAME = "preventivi-pwa-v6";
 
 const APP_SHELL = [
   "./",
@@ -10,7 +10,13 @@ const APP_SHELL = [
   "./css/layout.css",
   "./css/components.css",
   "./css/quote-page.css",
+  "./css/splash.css",
+  "./css/datepicker.css",
+  "./css/dashboard-charts.css",
   "./js/app.js",
+  "./js/cloud.js",
+  "./js/dashboard-charts.js",
+  "./js/datepicker.js",
   "./js/db.js",
   "./js/firebase.js",
   "./js/pdf.js",

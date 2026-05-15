@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Preventivi</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .splash {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      color: #fbf6ec;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 50% 35%, #0b5f56 0%, #08433d 55%, #053130 100%);
+      border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+      -webkit-app-region: drag;
+    }
+
+    .splash__logo {
+      width: 156px;
+      height: 156px;
+      filter: drop-shadow(0 0 24px rgba(244, 162, 97, 0.5));
+      animation: pulse 2.2s ease-in-out infinite;
+    }
+
+    .splash__title {
+      font-size: 30px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin: 0;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: title-in 700ms ease 200ms forwards;
+    }
+
+    .splash__loader {
+      position: relative;
+      width: 200px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      opacity: 0;
+      animation: title-in 500ms ease 350ms forwards;
+    }
+    .splash__loader::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -40%;
+      width: 40%;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(
+        90deg,
+        rgba(244, 162, 97, 0) 0%,
+        rgba(244, 162, 97, 0.85) 50%,
+        rgba(244, 162, 97, 0) 100%);
+      animation: shimmer 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1);    opacity: 0.95; }
+      50%      { transform: scale(1.08); opacity: 1;    }
+    }
+    @keyframes title-in {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shimmer {
+      0%   { left: -40%; }
+      100% { left: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .splash__logo, .splash__title, .splash__loader, .splash__loader::before {
+        animation: none !important;
+      }
+      .splash__title, .splash__loader { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash">
+    <img id="splashLogo" src="../assets/icon.svg" alt="" class="splash__logo">
+    <h1 class="splash__title">Preventivi</h1>
+    <div class="splash__loader"></div>
+  </div>
+  <script>
+    // Permette al main process di passare un percorso assoluto al logo
+    // (necessario nel pacchetto installato dove gli asset sono in resourcesPath).
+    try {
+      const params = new URLSearchParams(location.search);
+      const iconUrl = params.get("icon");
+      if (iconUrl) document.getElementById("splashLogo").src = iconUrl;
+    } catch (_) { /* noop */ }
+  </script>
+</body>
+</html>

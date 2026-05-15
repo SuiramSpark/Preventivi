@@ -33,4 +33,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   saveFileDialog: (defaultName, buffer) =>
     ipcRenderer.invoke("save-file-dialog", { defaultName, buffer }),
+
+  /**
+   * Genera un PDF dal contenuto HTML usando il rendering nativo di Chromium.
+   * Multi-pagina automatico, fedelta' 100% rispetto al preview.
+   * @param {string} html — HTML completo della pagina (con <style> inline)
+   * @returns {Promise<ArrayBuffer>}
+   */
+  generatePdf: (html) =>
+    ipcRenderer.invoke("generate-pdf", { html }),
 });
